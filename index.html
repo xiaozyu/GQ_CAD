@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>台電接戶線快速繪圖工具 - 原型</title>
+  <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body { display: flex; height: 100vh; overflow: hidden; background: #1e1e1e; color: #eee; }
+    #sidebar { width: 340px; background: #252526; padding: 16px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid #3e3e42; overflow-y: auto; }
+    #canvas-container { flex: 1; position: relative; background: #333; overflow: hidden; }
+    h2 { font-size: 16px; margin-bottom: 4px; color: #4fc1ff; }
+    .btn-group { display: flex; flex-direction: column; gap: 6px; }
+    button { padding: 8px 12px; background: #0e639c; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: left; font-size: 13px; }
+    button:hover { background: #1177bb; }
+    button.active { background: #388a34; }
+    .tool-btn { text-align: center; font-weight: bold; }
+    .template-btn { background: #333; border: 1px solid #555; }
+    .template-btn:hover { background: #444; }
+    .info { font-size: 12px; color: #888; line-height: 1.4; }
+    input[type="file"] { display: none; }
+    .file-label { display: block; padding: 8px; background: #3c3c3c; text-align: center; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .file-label:hover { background: #4c4c4c; }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <h2>1. 底圖來源</h2>
+    <label class="file-label" for="bg-upload">選擇底圖圖檔 (JPG/PNG)</label>
+    <input type="file" id="bg-upload" accept="image/*">
+    <div class="info">💡 亦可直接在網頁上按 <b>Ctrl + V</b> 貼上剪貼簿截圖</div>
+
+    <hr style="border: 0.5px solid #444;">
+
+    <h2>2. 繪圖模式</h2>
+    <div class="btn-group">
+      <button id="mode-select" class="tool-btn active">🖐️ 選取 / 拖曳元素</button>
+      <button id="mode-service-line" class="tool-btn">⚡ 繪製接戶線 (點2下)</button>
+      <button id="mode-callout" class="tool-btn">💬 放置紅框引線標註</button>
+    </div>
+
+    <hr style="border: 0.5px solid #444;">
+
+    <h2>3. 接戶線規格</h2>
+    <div class="btn-group">
+      <label style="font-size: 13px;">線徑種類：</label>
+      <select id="line-spec" style="padding: 6px; background: #333; color: white; border: 1px solid #555;">
+        <option value="3C22PV">3C22PV (單相三線 / 3槓)</option>
+        <option value="4C22PV">4C22PV (三相四線 / 4槓)</option>
+        <option value="4C60PV">4C60PV (三相四線 / 4槓)</option>
+      </select>
+    </div>
+
+    <hr style="border: 0.5px solid #444;">
+
+    <h2>4. 快速填入標註模板</h2>
+    <div class="btn-group">
+      <button class="template-btn" onclick="addTemplate('壓接6戶\nC22-22*18\n單壓*18')">📌 壓接 6 戶套管標註</button>
+      <button class="template-btn" onclick="addTemplate('五聯架*1\n伸出*1\n軸*5\nRH*4\nC125-60*2')">📌 五聯架 + 鐵件更新組</button>
+      <button class="template-btn" onclick="addTemplate('管穿 3C22PV 24M\n只裝沒拆')">📌 建物管穿線路標註</button>
+    </div>
+
+    <hr style="border: 0.5px solid #444;">
+
+    <h2>5. 成果產出</h2>
+    <button id="export-btn" style="background: #2ea043; text-align: center; font-weight: bold;">💾 匯出高畫質圖檔 (PNG)</button>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script>
+    const width = window.innerWidth - 340;
+    const height = window.innerHeight;
+
+    const stage = new Konva.Stage({
+      container: 'canvas-container',
+      width: width,
+      height: height,
+      draggable: false
+    });
+
+    const bgLayer = new Konva.Layer();
+    const drawLayer = new Konva.Layer();
+    stage.add(bgLayer);
+    stage.add(drawLayer);
+
+    let currentMode = 'select'; // 'select' | 'service-line' | 'callout'
+    let lineStartPoint = null;
+
+    // 模式切換按鈕事件
+    const btns = {
+      'select': document.getElementById('mode-select'),
+      'service-line': document.getElementById('mode-service-line'),
+      'callout': document.getElementById('mode-callout')
+    };
+
+    function setMode(mode) {
+      currentMode = mode;
+      Object.keys(btns).forEach(m => btns[m].classList.remove('active'));
+      btns[mode].classList.add('active');
+      stage.draggable(mode === 'select');
+    }
+
+    btns['select'].onclick = () => setMode('select');
+    btns['service-line'].onclick = () => setMode('service-line');
+    btns['callout'].onclick = () => setMode('callout');
+
+    // 載入底圖處理
+    function loadBackground(imageObj) {
+      bgLayer.destroyChildren();
+      const konvaImg = new Konva.Image({
+        x: 0,
+        y: 0,
+        image: imageObj,
+        draggable: false
+      });
+      bgLayer.add(konvaImg);
+      bgLayer.draw();
+    }
+
+    document.getElementById('bg-upload').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const img = new Image();
+        img.onload = () => loadBackground(img);
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // 支援 Ctrl+V 貼上截圖
+    window.addEventListener('paste', function(e) {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (let item of items) {
+        if (item.type.indexOf('image') === 0) {
+          const blob = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = function(evt) {
+            const img = new Image();
+            img.onload = () => loadBackground(img);
+            img.src = evt.target.result;
+          };
+          reader.readAsDataURL(blob);
+        }
+      }
+    });
+
+    // 畫布點擊事件
+    stage.on('click', function(e) {
+      const pos = stage.getPointerPosition();
+
+      if (currentMode === 'service-line') {
+        if (!lineStartPoint) {
+          lineStartPoint = pos;
+        } else {
+          createServiceLine(lineStartPoint, pos);
+          lineStartPoint = null;
+          setMode('select');
+        }
+      } else if (currentMode === 'callout') {
+        createCallout(pos.x, pos.y, '新設標註\n雙擊編輯內容');
+        setMode('select');
+      }
+    });
+
+    // 繪製台電接戶線（閃電折線 + 橫槓數）
+    function createServiceLine(p1, p2) {
+      const group = new Konva.Group({ draggable: true });
+      const spec = document.getElementById('line-spec').value;
+      const slashCount = spec.startsWith('3C') ? 3 : 4;
+
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const angle = Math.atan2(dy, dx);
+      const dist = Math.round(Math.hypot(dx, dy) / 10); // 假定像素比例推估米數
+
+      // 閃電折線路徑
+      const offset = 8;
+      const points = [
+        p1.x, p1.y,
+        midX - offset * Math.sin(angle), midY + offset * Math.cos(angle),
+        midX + offset * Math.sin(angle), midY - offset * Math.cos(angle),
+        p2.x, p2.y
+      ];
+
+      const line = new Konva.Line({
+        points: points,
+        stroke: 'black',
+        strokeWidth: 2,
+        tension: 0.1
+      });
+      group.add(line);
+
+      // 線上斜線橫槓（代表相線數）
+      const slashLen = 12;
+      for (let i = 0; i < slashCount; i++) {
+        const offsetDist = (i - (slashCount - 1) / 2) * 6;
+        const cx = midX + offsetDist * Math.cos(angle);
+        const cy = midY + offsetDist * Math.sin(angle);
+
+        const slash = new Konva.Line({
+          points: [
+            cx - slashLen/2 * Math.cos(angle + Math.PI/4), cy - slashLen/2 * Math.sin(angle + Math.PI/4),
+            cx + slashLen/2 * Math.cos(angle + Math.PI/4), cy + slashLen/2 * Math.sin(angle + Math.PI/4)
+          ],
+          stroke: 'black',
+          strokeWidth: 2
+        });
+        group.add(slash);
+      }
+
+      // 長度與規格標記文字
+      const text = new Konva.Text({
+        x: midX - 30,
+        y: midY - 24,
+        text: `${spec} ${dist}M+1`,
+        fontSize: 12,
+        fontFamily: 'Arial',
+        fill: 'red',
+        fontStyle: 'bold'
+      });
+      group.add(text);
+
+      drawLayer.add(group);
+      drawLayer.draw();
+    }
+
+    // 建立紅框引線標註
+    function createCallout(x, y, defaultText) {
+      const group = new Konva.Group({
+        x: x,
+        y: y,
+        draggable: true
+      });
+
+      const leaderLine = new Konva.Line({
+        points: [-30, 20, 0, 0],
+        stroke: 'red',
+        strokeWidth: 1.5
+      });
+
+      const text = new Konva.Text({
+        text: defaultText,
+        fontSize: 12,
+        fontFamily: 'Arial',
+        fill: 'red',
+        padding: 6,
+        lineHeight: 1.3
+      });
+
+      const rect = new Konva.Rect({
+        stroke: 'red',
+        strokeWidth: 1,
+        fill: 'rgba(255, 255, 255, 0.85)'
+      });
+
+      group.add(leaderLine);
+      group.add(rect);
+      group.add(text);
+
+      function updateBox() {
+        rect.width(text.width());
+        rect.height(text.height());
+      }
+      updateBox();
+
+      // 雙擊編輯文字
+      text.on('dblclick', () => {
+        const val = prompt('請輸入標註文字內容 (支援換行):', text.text());
+        if (val !== null) {
+          text.text(val);
+          updateBox();
+          drawLayer.draw();
+        }
+      });
+
+      drawLayer.add(group);
+      drawLayer.draw();
+      return group;
+    }
+
+    // 加入預設模板
+    window.addTemplate = function(text) {
+      createCallout(150, 150, text);
+    };
+
+    // 匯出高畫質 PNG
+    document.getElementById('export-btn').onclick = function() {
+      const dataURL = stage.toDataURL({ pixelRatio: 2 });
+      const link = document.createElement('a');
+      link.download = '台電設計圖面.png';
+      link.href = dataURL;
+      link.click();
+    };
+  </script>
+</body>
+</html>
