@@ -9,8 +9,52 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
     body { display: flex; height: 100vh; overflow: hidden; background: #0b0f19; color: #f8fafc; }
 
-    #left-bar { width: 280px; min-width: 280px; background: #131d31; padding: 12px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid #1e293b; z-index: 10; overflow-y: auto; }
+    #left-bar { width: 300px; min-width: 300px; background: #131d31; padding: 10px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid #1e293b; z-index: 10; overflow-y: auto; }
+    #main-workspace { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    
     #canvas-container { flex: 1; position: relative; background: #e2e8f0; overflow: hidden; }
+
+    /* 右下角嵌入式即時衛星/街景對照視窗 */
+    #map-preview-panel {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      width: 340px;
+      height: 240px;
+      background: #1e293b;
+      border: 2px solid #38bdf8;
+      border-radius: 8px;
+      z-index: 50;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .map-preview-header {
+      background: #0f172a;
+      padding: 5px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: bold;
+      color: #38bdf8;
+      border-bottom: 1px solid #334155;
+    }
+    .map-preview-header button {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    #map-preview-frame {
+      flex: 1;
+      width: 100%;
+      border: none;
+    }
 
     #excel-props-bar {
       position: absolute;
@@ -97,7 +141,7 @@
     <input type="file" id="folder-upload" webkitdirectory directory multiple>
 
     <div style="display: flex; gap: 4px;">
-      <input type="text" id="map-search-input" placeholder="圖號 (如 4261 或 G4261)" 
+      <input type="text" id="map-search-input" placeholder="圖號 (如 4261 或 3850HE5330)" 
              style="flex: 1; padding: 5px 6px; background: #0f172a; color: #facc15; border: 1px solid #334155; border-radius: 4px; text-transform: uppercase; font-size: 12px; font-family: monospace; font-weight: bold;">
       <button id="search-load-btn" style="padding: 5px 8px; background: #16a34a;">載入</button>
     </div>
@@ -118,7 +162,7 @@
     <h2>3. 雙排快捷標註 (ASDF / ZXCV)</h2>
     <div class="action-card">
       <div style="font-size: 11px; font-weight: bold; color: #94a3b8;">【底排：繪圖定位】</div>
-      <button id="mode-pan" class="tool-btn active"><span>🖐️️ 平移地圖</span><span class="kbd">Z</span></button>
+      <button id="mode-pan" class="tool-btn active"><span>🖐 平移地圖</span><span class="kbd">Z</span></button>
       <button id="mode-select" class="tool-btn"><span>↖️ 選取 / 框選</span><span class="kbd">X</span></button>
       <button id="mode-draw-line" class="tool-btn" style="background: #0284c7;"><span>⚡ 壓著拉接戶線</span><span class="kbd">C</span></button>
       <button id="mode-add-box" class="tool-btn" style="background: #dc2626;"><span>📌 標示框 (管穿/鐵件)</span><span class="kbd">V</span></button>
@@ -137,49 +181,160 @@
     <h2>4. 編輯歷史與匯出</h2>
     <div style="display: flex; gap: 4px;">
       <button id="btn-undo" style="flex: 1; text-align: center; background: #334155;">↩️ 復原 (Ctrl+Z)</button>
-      <button id="btn-redo" style="flex: 1; text-align: center; background: #334155;">↪️ 重做 (Ctrl+Y)</button>
+      <button id="btn-redo" style="flex: 1; text-align: center; background: #334155;">↪️️ 重做 (Ctrl+Y)</button>
     </div>
     <button id="export-btn" style="background: #16a34a; text-align: center; font-weight: bold; margin-top: 4px;">💾 匯出高解析圖面 (PNG)</button>
   </div>
 
-  <div id="canvas-container">
-    <div id="excel-props-bar">
-      <span style="color: #94a3b8; font-weight: bold;">樣式:</span>
-      <select id="prop-font-size">
-        <option value="11">11 px</option>
-        <option value="12" selected>12 px</option>
-        <option value="14">14 px</option>
-        <option value="16">16 px</option>
-        <option value="18">18 px</option>
-      </select>
-      <button id="prop-bold-btn" style="font-weight: bold;">B</button>
-      
-      <span style="color: #94a3b8; font-weight: bold; margin-left: 6px;">線數:</span>
-      <select id="prop-wire-count">
-        <option value="1">1 條</option>
-        <option value="2">2 條</option>
-        <option value="3" selected>3 條 (標準)</option>
-        <option value="4">4 條</option>
-        <option value="5">5 條</option>
-      </select>
+  <div id="main-workspace">
+    <div id="canvas-container">
+      <div id="excel-props-bar">
+        <span style="color: #94a3b8; font-weight: bold;">樣式:</span>
+        <select id="prop-font-size">
+          <option value="11">11 px</option>
+          <option value="12" selected>12 px</option>
+          <option value="14">14 px</option>
+          <option value="16">16 px</option>
+          <option value="18">18 px</option>
+        </select>
+        <button id="prop-bold-btn" style="font-weight: bold;">B</button>
+        
+        <span style="color: #94a3b8; font-weight: bold; margin-left: 6px;">線數:</span>
+        <select id="prop-wire-count">
+          <option value="1">1 條</option>
+          <option value="2">2 條</option>
+          <option value="3" selected>3 條 (標準)</option>
+          <option value="4">4 條</option>
+          <option value="5">5 條</option>
+        </select>
 
-      <div style="display: flex; gap: 4px; align-items: center; margin-left: 6px;">
-        <span class="color-btn" style="background: #dc2626;" onclick="applyColor('#dc2626')"></span>
-        <span class="color-btn" style="background: #2563eb;" onclick="applyColor('#2563eb')"></span>
-        <span class="color-btn" style="background: #000000;" onclick="applyColor('#000000')"></span>
-        <span class="color-btn" style="background: #16a34a;" onclick="applyColor('#16a34a')"></span>
+        <div style="display: flex; gap: 4px; align-items: center; margin-left: 6px;">
+          <span class="color-btn" style="background: #dc2626;" onclick="applyColor('#dc2626')"></span>
+          <span class="color-btn" style="background: #2563eb;" onclick="applyColor('#2563eb')"></span>
+          <span class="color-btn" style="background: #000000;" onclick="applyColor('#000000')"></span>
+          <span class="color-btn" style="background: #16a34a;" onclick="applyColor('#16a34a')"></span>
+        </div>
       </div>
+    </div>
+
+    <!-- 右下角即時對照視窗 -->
+    <div id="map-preview-panel">
+      <div class="map-preview-header">
+        <span id="preview-title">🛰️ 現場衛星/街景對照</span>
+        <button id="btn-toggle-preview-mode">切換街景</button>
+      </div>
+      <iframe id="map-preview-frame" src="about:blank"></iframe>
     </div>
   </div>
 
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+    // 移植自「巨擎導航」的精準台電圖號與座標核心
+    const BASE_COORDS = {
+      'A': [90000, 2750000],  'B': [170000, 2750000], 'C': [250000, 2750000],
+      'D': [90000, 2700000],  'E': [170000, 2700000], 'F': [250000, 2700000],
+      'G': [170000, 2650000], 'H': [250000, 2650000],
+      'J': [90000, 2600000],  'K': [170000, 2600000], 'L': [250000, 2600000],
+      'M': [90000, 2550000],  'N': [170000, 2550000], 'O': [250000, 2550000],
+      'P': [90000, 2500000],  'Q': [170000, 2500000], 'R': [250000, 2500000],
+      'T': [170000, 2450000], 'U': [250000, 2450000],
+      'V': [170000, 2400000], 'W': [250000, 2400000]
+    };
+
+    const TO_DIGIT = { 'O': '0', 'I': '1', 'L': '1', 'Z': '2', 'A': '4', 'S': '5', 'G': '6', 'B': '8', 'Q': '0', 'D': '0' };
+    const TO_LETTER = { '0': 'O', '1': 'I', '8': 'B', '5': 'S', '2': 'Z' };
+
+    function sanitizeTaipowerCode(raw) {
+      let s = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (s.length < 9) return s;
+      let arr = s.split('');
+      if (TO_LETTER[arr[0]]) arr[0] = TO_LETTER[arr[0]];
+      for (let i = 1; i <= 4; i++) if (TO_DIGIT[arr[i]]) arr[i] = TO_DIGIT[arr[i]];
+      for (let i = 5; i <= 6; i++) if (TO_LETTER[arr[i]]) arr[i] = TO_LETTER[arr[i]];
+      for (let i = 7; i < arr.length; i++) if (TO_DIGIT[arr[i]]) arr[i] = TO_DIGIT[arr[i]];
+      return arr.join('');
+    }
+
+    function taipowerToTWD67(code) {
+      code = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!code) return null;
+
+      // 若開頭為數字，自動預設補台中區分區字頭 'G'
+      if (/^[0-9]/.test(code)) code = 'G' + code;
+
+      const zone = code[0];
+      if (!BASE_COORDS[zone]) return null;
+      const [baseX, baseY] = BASE_COORDS[zone];
+
+      // 純 4 碼圖號 (例如 4261 或 G4261)：定位於該圖號中心點 (400m, 250m)
+      if (code.length < 9) {
+        const x_800 = parseInt(code.substring(1, 3), 10) || 0;
+        const y_500 = parseInt(code.substring(3, 5), 10) || 0;
+        return [baseX + (x_800 * 800) + 400, baseY + (y_500 * 500) + 250];
+      }
+
+      // 9 碼或 11 碼精確桿號 (例如 G3850HE5330 或 3850HE5330)
+      code = sanitizeTaipowerCode(code);
+      const x_800 = parseInt(code.substring(1, 3), 10);
+      const y_500 = parseInt(code.substring(3, 5), 10);
+
+      let subXChar = code[5].toUpperCase();
+      if (subXChar === 'S') subXChar = 'B';
+      if (subXChar > 'H') subXChar = 'A';
+
+      let subYChar = code[6].toUpperCase();
+      if (subYChar > 'E') subYChar = 'A';
+
+      const subX = subXChar.charCodeAt(0) - 65;
+      const subY = subYChar.charCodeAt(0) - 65;
+
+      let offsetX = 0, offsetY = 0;
+      if (code.length >= 11) {
+        offsetX = parseInt(code.substring(7, 9), 10);
+        offsetY = parseInt(code.substring(9, 11), 10);
+      } else if (code.length >= 9) {
+        offsetX = parseInt(code[7], 10) * 10;
+        offsetY = parseInt(code[8], 10) * 10;
+      }
+
+      return [
+        baseX + (x_800 * 800) + (subX * 100) + offsetX,
+        baseY + (y_500 * 500) + (subY * 100) + offsetY
+      ];
+    }
+
+    function twd67ToWGS84(x, y) {
+      const A = 0.00001549, B = 0.000006521;
+      const x97 = x + 807.8 + A * x + B * y;
+      const y97 = y - 248.6 + A * y - B * x;
+
+      const a = 6378137.0, b = 6356752.314245, lon0 = 121.0 * Math.PI / 180, k0 = 0.9999, dx = 250000;
+      const e = Math.sqrt(1 - (b * b) / (a * a)), e2 = (e * e) / (1 - e * e);
+      const M = y97 / k0;
+      const mu = M / (a * (1 - e*e/4 - 3*e*e*e*e/64 - 5*e*e*e*e*e*e/256));
+      const e1 = (1 - Math.sqrt(1 - e*e)) / (1 + Math.sqrt(1 - e*e));
+
+      const fp = mu + (3*e1/2 - 27*e1*e1*e1/32)*Math.sin(2*mu) + (21*e1*e1/16 - 55*e1*e1*e1*e1/32)*Math.sin(4*mu) + (151*e1*e1*e1/96)*Math.sin(6*mu);
+      const C1 = e2 * Math.pow(Math.cos(fp), 2);
+      const T1 = Math.pow(Math.tan(fp), 2);
+      const R1 = a * (1 - e*e) / Math.pow(1 - e*e * Math.sin(fp)*Math.sin(fp), 1.5);
+      const N1 = a / Math.sqrt(1 - e*e * Math.sin(fp)*Math.sin(fp));
+      const D = (x97 - dx) / (N1 * k0);
+
+      const latRad = fp - (N1 * Math.tan(fp) / R1) * ((D*D/2) - (5 + 3*T1 + 10*C1 - 4*C1*C1 - 9*e2)*Math.pow(D,4)/24 + (61 + 90*T1 + 298*C1 + 45*T1*T1 - 252*e2 - 3*C1*C1)*Math.pow(D,6)/720);
+      const lonRad = lon0 + (D - (1 + 2*T1 + C1)*Math.pow(D,3)/6 + (5 - 2*C1 + 28*T1 - 3*C1*C1 + 8*e2 + 24*T1*T1)*Math.pow(D,5)/120) / Math.cos(fp);
+
+      return { lat: (latRad * 180 / Math.PI).toFixed(6), lng: (lonRad * 180 / Math.PI).toFixed(6) };
+    }
+
     const PDF_RENDER_SCALE = 3.5;
     let MAP_W = 0;
     let MAP_H = 0;
     let PX_PER_METER = 1;
     let cachedCrop = null;
+    let currentMapName = 'G4261';
+    let isPreviewStreetView = false;
 
     const STYLE = {
       SERVICE_STROKE: 2.5,
@@ -219,10 +374,36 @@
     const stitchedMaps = new Map();
     const activeServiceLines = [];
 
-    // 10 × 16 網格浮水印：整張圖的每一個格子中央都固定顯示當前載入的圖號（例如 G4261）
+    // 更新右下角即時對照視窗
+    function updatePreviewMap(queryStr) {
+      if (!queryStr) return;
+      const twd67 = taipowerToTWD67(queryStr);
+      const frame = document.getElementById('map-preview-frame');
+      const title = document.getElementById('preview-title');
+      if (!twd67) {
+        frame.src = 'about:blank';
+        return;
+      }
+      const wgs = twd67ToWGS84(twd67[0], twd67[1]);
+      if (isPreviewStreetView) {
+        title.innerText = `🚶 現場街景 (${queryStr})`;
+        frame.src = `https://maps.google.com/maps?layer=c&cbll=${wgs.lat},${wgs.lng}&cbp=12,0,0,0,0&output=svembed`;
+      } else {
+        title.innerText = `🛰️️ 衛星空照 (${queryStr})`;
+        frame.src = `https://maps.google.com/maps?q=${wgs.lat},${wgs.lng}&hl=zh-TW&z=19&t=k&output=embed`;
+      }
+    }
+
+    document.getElementById('btn-toggle-preview-mode').onclick = () => {
+      isPreviewStreetView = !isPreviewStreetView;
+      document.getElementById('btn-toggle-preview-mode').innerText = isPreviewStreetView ? "切換衛星" : "切換街景";
+      const inputVal = document.getElementById('map-search-input').value.trim() || currentMapName;
+      updatePreviewMap(inputVal);
+    };
+
+    // 10 × 16 網格浮水印
     function createMapGridWatermarks(mapName, baseMapW, baseMapH, offsetX = 0, offsetY = 0) {
       const group = new Konva.Group({ x: offsetX, y: offsetY, listening: false });
-
       const cleanName = mapName.startsWith('G') ? mapName : 'G' + mapName;
       const cols = 10;
       const rows = 16;
@@ -251,9 +432,7 @@
       return group;
     }
 
-    // ==========================================
     // 歷史紀錄 (Undo / Redo)
-    // ==========================================
     const historyStack = [];
     let historyStep = -1;
     let isHistoryOperating = false;
@@ -274,7 +453,6 @@
           pin: { x: b.findOne('.pole-handle').x(), y: b.findOne('.pole-handle').y() }
         }))
       };
-
       historyStack.splice(historyStep + 1);
       historyStack.push(JSON.stringify(state));
       historyStep++;
@@ -284,7 +462,6 @@
       if (!jsonStr) return;
       isHistoryOperating = true;
       const state = JSON.parse(jsonStr);
-
       [...activeServiceLines].forEach(item => item.group.destroy());
       activeServiceLines.length = 0;
       drawLayer.find('.custom-box').forEach(b => b.destroy());
@@ -309,19 +486,8 @@
       isHistoryOperating = false;
     }
 
-    function undo() {
-      if (historyStep > 0) {
-        historyStep--;
-        applyState(historyStack[historyStep]);
-      }
-    }
-
-    function redo() {
-      if (historyStep < historyStack.length - 1) {
-        historyStep++;
-        applyState(historyStack[historyStep]);
-      }
-    }
+    function undo() { if (historyStep > 0) { historyStep--; applyState(historyStack[historyStep]); } }
+    function redo() { if (historyStep < historyStack.length - 1) { historyStep++; applyState(historyStack[historyStep]); } }
 
     document.getElementById('btn-undo')?.addEventListener('click', undo);
     document.getElementById('btn-redo')?.addEventListener('click', redo);
@@ -333,9 +499,7 @@
       'add-box': document.getElementById('mode-add-box')
     };
 
-    function getNodeChar(idx) {
-      return String.fromCharCode(65 + idx);
-    }
+    function getNodeChar(idx) { return String.fromCharCode(65 + idx); }
 
     const ghostWatermark = new Konva.Group({ visible: false, opacity: 0.85 });
     const ghostText = new Konva.Text({ x: 18, y: 18, fontSize: 12, fontStyle: 'bold', fill: '#ffffff', padding: 4 });
@@ -351,12 +515,9 @@
 
     function setMode(mode) {
       currentMode = mode;
-      Object.keys(modeBtns).forEach(m => {
-        if (modeBtns[m]) modeBtns[m].classList.remove('active');
-      });
+      Object.keys(modeBtns).forEach(m => { if (modeBtns[m]) modeBtns[m].classList.remove('active'); });
       if (modeBtns[mode]) modeBtns[mode].classList.add('active');
       stage.draggable(mode === 'pan');
-
       ghostWatermark.visible(false);
       ghostBoxGroup.visible(false);
       ghostLayer.batchDraw();
@@ -366,7 +527,6 @@
         else if (mode === 'pan') container.className = 'cursor-grab';
         else container.className = '';
       }
-
       if (mode === 'draw-line') {
         const nextChar = getNodeChar(activeServiceLines.length);
         ghostText.text(`⚡ 接戶線 [${nextChar}]：壓著電桿拖曳至用戶端放開`);
@@ -376,7 +536,6 @@
       } else if (mode === 'add-box') {
         ghostBoxGroup.visible(true);
       }
-
       if (mode !== 'select') {
         tr.nodes([]);
         drawLayer.find('.pole-handle').forEach(h => h.visible(false));
@@ -391,41 +550,26 @@
 
     window.addEventListener('keydown', (e) => {
       if (['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) return;
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        redo();
-        return;
-      }
-
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
       const key = e.key.toLowerCase();
       if (key === 'z') setMode('pan');
       if (key === 'x') setMode('select');
       if (key === 'c') setMode('draw-line');
       if (key === 'v') setMode('add-box');
-
       if (key === 'a') getOrCreateSummaryBox();
       if (key === 's') cycleSelectedWireCount();
       if (key === 'd' || e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
       if (key === 'f') toggleSelectedBold();
-
       if (e.key === 'Escape') setMode('select');
     });
 
-    // 動態更新材料彙整表 (幾條線就對應幾個軸與對應數量的壓接端子 C22-22*N)
     function refreshServiceLinesIndex() {
       activeServiceLines.forEach((item, idx) => {
         const correctChar = getNodeChar(idx);
         item.char = correctChar;
         item.badgeText.text(correctChar);
       });
-
       if (summaryTextNode) {
         let content = '【外線材料彙整規格】';
         activeServiceLines.forEach(item => {
@@ -445,11 +589,7 @@
       const selected = tr.nodes();
       if (selected.length > 0) {
         selected.forEach(node => {
-          if (node === summaryGroup) {
-            summaryGroup = null;
-            summaryTextNode = null;
-            summaryRectNode = null;
-          }
+          if (node === summaryGroup) { summaryGroup = null; summaryTextNode = null; summaryRectNode = null; }
           const idx = activeServiceLines.findIndex(item => item.group === node);
           if (idx !== -1) activeServiceLines.splice(idx, 1);
           node.destroy();
@@ -462,13 +602,7 @@
     }
     document.getElementById('btn-delete')?.addEventListener('click', deleteSelected);
 
-    let selectionBox = new Konva.Rect({
-      fill: 'rgba(56, 189, 248, 0.15)',
-      stroke: '#38bdf8',
-      strokeWidth: 1,
-      dash: [4, 2],
-      visible: false
-    });
+    let selectionBox = new Konva.Rect({ fill: 'rgba(56, 189, 248, 0.15)', stroke: '#38bdf8', strokeWidth: 1, dash: [4, 2], visible: false });
     selectionLayer.add(selectionBox);
 
     let selStart = null;
@@ -490,19 +624,11 @@
       e.evt.preventDefault();
       const oldScale = stage.scaleX();
       const pointer = stage.getPointerPosition();
-      const mousePointTo = {
-        x: (pointer.x - stage.x()) / oldScale,
-        y: (pointer.y - stage.y()) / oldScale,
-      };
-
+      const mousePointTo = { x: (pointer.x - stage.x()) / oldScale, y: (pointer.y - stage.y()) / oldScale };
       let direction = e.evt.deltaY > 0 ? -1 : 1;
       const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
       stage.scale({ x: newScale, y: newScale });
-      stage.position({
-        x: pointer.x - mousePointTo.x * newScale,
-        y: pointer.y - mousePointTo.y * newScale,
-      });
-
+      stage.position({ x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale });
       stage.find('.adaptive-handle').forEach(h => h.radius(STYLE.HANDLE_RADIUS / newScale));
       stage.find('.adaptive-service-line').forEach(l => l.strokeWidth(STYLE.SERVICE_STROKE / newScale));
       stage.batchDraw();
@@ -515,7 +641,6 @@
     stage.on('mousedown', (e) => {
       const transform = stage.getAbsoluteTransform().copy().invert();
       const curPos = transform.point(stage.getPointerPosition());
-
       if (currentMode === 'draw-line') {
         isDrawingServiceLine = true;
         serviceStartPt = curPos;
@@ -527,16 +652,8 @@
     stage.on('mousemove', (e) => {
       const transform = stage.getAbsoluteTransform().copy().invert();
       const curPos = transform.point(stage.getPointerPosition());
-
-      if (ghostWatermark.visible()) {
-        ghostWatermark.position({ x: curPos.x, y: curPos.y });
-        ghostLayer.batchDraw();
-      }
-      if (ghostBoxGroup.visible()) {
-        ghostBoxGroup.position({ x: curPos.x, y: curPos.y });
-        ghostLayer.batchDraw();
-      }
-
+      if (ghostWatermark.visible()) { ghostWatermark.position({ x: curPos.x, y: curPos.y }); ghostLayer.batchDraw(); }
+      if (ghostBoxGroup.visible()) { ghostBoxGroup.position({ x: curPos.x, y: curPos.y }); ghostLayer.batchDraw(); }
       if (isDrawingServiceLine && liveServiceGroup) {
         liveServiceGroup.updateEndpoints(serviceStartPt, curPos);
         const distPx = Math.hypot(curPos.x - serviceStartPt.x, curPos.y - serviceStartPt.y);
@@ -550,15 +667,10 @@
         ghostLayer.batchDraw();
         return;
       }
-
       if (selStart) {
-        const x = Math.min(selStart.x, curPos.x);
-        const y = Math.min(selStart.y, curPos.y);
-        const w = Math.abs(curPos.x - selStart.x);
-        const h = Math.abs(curPos.y - selStart.y);
-        selectionBox.position({ x, y });
-        selectionBox.width(w);
-        selectionBox.height(h);
+        const x = Math.min(selStart.x, curPos.x), y = Math.min(selStart.y, curPos.y);
+        const w = Math.abs(curPos.x - selStart.x), h = Math.abs(curPos.y - selStart.y);
+        selectionBox.position({ x, y }); selectionBox.width(w); selectionBox.height(h);
         selectionLayer.batchDraw();
       }
     });
@@ -566,42 +678,27 @@
     stage.on('mouseup', (e) => {
       const transform = stage.getAbsoluteTransform().copy().invert();
       const curPos = transform.point(stage.getPointerPosition());
-
       if (selStart) {
         const selRect = selectionBox.getClientRect();
-        selectionBox.visible(false);
-        selectionLayer.batchDraw();
-        selStart = null;
-
+        selectionBox.visible(false); selectionLayer.batchDraw(); selStart = null;
         const selectableNodes = drawLayer.getChildren().filter(node => node !== tr);
         const selected = selectableNodes.filter(node => {
           const nodeRect = node.getClientRect();
-          return (
-            nodeRect.x >= selRect.x &&
-            nodeRect.y >= selRect.y &&
-            nodeRect.x + nodeRect.width <= selRect.x + selRect.width &&
-            nodeRect.y + nodeRect.height <= selRect.y + selRect.height
-          );
+          return nodeRect.x >= selRect.x && nodeRect.y >= selRect.y && nodeRect.x + nodeRect.width <= selRect.x + selRect.width && nodeRect.y + nodeRect.height <= selRect.y + selRect.height;
         });
-
         tr.nodes(selected);
         drawLayer.draw();
         return;
       }
-
       if (isDrawingServiceLine && liveServiceGroup) {
         isDrawingServiceLine = false;
         const distPx = Math.hypot(curPos.x - serviceStartPt.x, curPos.y - serviceStartPt.y);
         const meters = Math.round(distPx / PX_PER_METER);
-
         liveServiceGroup.updateEndpoints(serviceStartPt, curPos);
         liveServiceGroup.serviceData.meters = meters;
-
         activeServiceLines.push(liveServiceGroup.serviceData);
         refreshServiceLinesIndex();
-
-        liveServiceGroup = null;
-        serviceStartPt = null;
+        liveServiceGroup = null; serviceStartPt = null;
         setMode('select');
         saveState();
       }
@@ -610,7 +707,6 @@
     stage.on('click', (e) => {
       const transform = stage.getAbsoluteTransform().copy().invert();
       const pos = transform.point(stage.getPointerPosition());
-
       if (currentMode === 'add-box') {
         createCustomAnnotationBox(pos.x, pos.y);
         setMode('select');
@@ -618,70 +714,37 @@
       }
     });
 
-    // 自由標示框 (徹底解鎖指標端點拖曳，不被選取框鎖死)
     function createCustomAnnotationBox(x, y, defaultText = '管穿 11/2" 13M\nC22-22*3') {
       const group = new Konva.Group({ x: x, y: y, draggable: true, name: 'custom-box' });
       const curScale = stage.scaleX() || 1;
-
       const line = new Konva.Line({ stroke: 'red', strokeWidth: 1.5, dash: [4, 2] });
       const rect = new Konva.Rect({ x: 35, y: -30, stroke: 'red', strokeWidth: 1.6, fill: 'rgba(255, 255, 255, 0.95)' });
       const text = new Konva.Text({ x: 35, y: -30, text: defaultText, fontSize: 12, fontStyle: 'bold', fill: 'red', padding: 6, lineHeight: 1.35 });
-      
-      const pinHandle = new Konva.Circle({
-        x: 0, y: 0,
-        radius: 16 / curScale,
-        fill: 'transparent',
-        stroke: 'transparent',
-        draggable: true,
-        name: 'pole-handle'
-      });
+      const pinHandle = new Konva.Circle({ x: 0, y: 0, radius: 16 / curScale, fill: 'transparent', stroke: 'transparent', draggable: true, name: 'pole-handle' });
 
       function update() {
-        rect.width(text.width());
-        rect.height(text.height());
+        rect.width(text.width()); rect.height(text.height());
         line.points([pinHandle.x(), pinHandle.y(), rect.x(), rect.y() + rect.height() / 2]);
       }
       group.updateLine = update;
-
       pinHandle.on('mousedown touchstart', (e) => { e.cancelBubble = true; });
-      pinHandle.on('dragmove', (e) => { 
-        e.cancelBubble = true; 
-        update(); 
-        drawLayer.batchDraw(); 
-      });
-      pinHandle.on('dragend', (e) => {
-        e.cancelBubble = true;
-        saveState();
-      });
-
+      pinHandle.on('dragmove', (e) => { e.cancelBubble = true; update(); drawLayer.batchDraw(); });
+      pinHandle.on('dragend', (e) => { e.cancelBubble = true; saveState(); });
       update();
       makeEditable(text, update);
-
       group.add(line, rect, text, pinHandle);
-
-      group.on('click', (e) => {
-        if (currentMode === 'select') {
-          e.cancelBubble = true;
-          tr.nodes([group]);
-          drawLayer.draw();
-        }
-      });
-
+      group.on('click', (e) => { if (currentMode === 'select') { e.cancelBubble = true; tr.nodes([group]); drawLayer.draw(); } });
       group.on('dragend', saveState);
-
       drawLayer.add(group);
       drawLayer.draw();
       return group;
     }
 
-    // 接戶線實體封裝 (斜線靠向英文側/編號端)
     function createInteractiveServiceLine(p1, p2, labelChar, wireCount = 3) {
       const group = new Konva.Group({ draggable: true });
       const curScale = stage.scaleX() || 1;
-
       const mainLine = new Konva.Line({ stroke: '#0066FF', strokeWidth: STYLE.SERVICE_STROKE / curScale, name: 'adaptive-service-line' });
       const slashGroup = new Konva.Group();
-
       const nodeBadge = new Konva.Group({ x: p2.x, y: p2.y });
       const badgeRect = new Konva.Rect({ x: 6, y: -13, width: 24, height: 24, stroke: '#0066FF', strokeWidth: 1.8, fill: 'white', cornerRadius: 3 });
       const badgeText = new Konva.Text({ x: 6, y: -9, width: 24, text: labelChar, align: 'center', fontSize: 14, fill: '#0066FF', fontStyle: 'bold' });
@@ -691,106 +754,39 @@
       const h1 = new Konva.Circle({ x: p1.x, y: p1.y, radius: STYLE.HANDLE_RADIUS / curScale, fill: '#0066FF', stroke: '#fff', strokeWidth: 1.5 / curScale, draggable: true, name: 'adaptive-handle' });
       const h2 = new Konva.Circle({ x: p2.x, y: p2.y, radius: STYLE.HANDLE_RADIUS / curScale, fill: '#0066FF', stroke: '#fff', strokeWidth: 1.5 / curScale, draggable: true, name: 'adaptive-handle' });
 
-      const serviceData = {
-        group,
-        badgeText,
-        h1, h2,
-        char: labelChar,
-        wireCount: wireCount,
-        meters: 0
-      };
+      const serviceData = { group, badgeText, h1, h2, char: labelChar, wireCount: wireCount, meters: 0 };
 
       function renderSlashes(baseX, baseY, angle, normalX, normalY, count) {
         slashGroup.destroyChildren();
-        const slashLen = 11;
-        const spacing = 5;
-        const startOffset = -((count - 1) / 2) * spacing;
-
+        const slashLen = 11, spacing = 5, startOffset = -((count - 1) / 2) * spacing;
         for (let i = 0; i < count; i++) {
           const off = startOffset + i * spacing;
-          const cx = baseX + off * Math.cos(angle);
-          const cy = baseY + off * Math.sin(angle);
-          const s = new Konva.Line({
-            stroke: '#0066FF',
-            strokeWidth: STYLE.SERVICE_STROKE / curScale,
-            name: 'adaptive-service-line',
-            points: [
-              cx - (slashLen/2) * normalX, cy - (slashLen/2) * normalY,
-              cx + (slashLen/2) * normalX, cy + (slashLen/2) * normalY
-            ]
-          });
+          const cx = baseX + off * Math.cos(angle), cy = baseY + off * Math.sin(angle);
+          const s = new Konva.Line({ stroke: '#0066FF', strokeWidth: STYLE.SERVICE_STROKE / curScale, name: 'adaptive-service-line', points: [cx - (slashLen/2) * normalX, cy - (slashLen/2) * normalY, cx + (slashLen/2) * normalX, cy + (slashLen/2) * normalY] });
           slashGroup.add(s);
         }
       }
 
       function renderPts(x1, y1, x2, y2) {
-        const dx = x2 - x1, dy = y2 - y1;
-        const angle = Math.atan2(dy, dx);
+        const dx = x2 - x1, dy = y2 - y1, angle = Math.atan2(dy, dx);
         const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-        const normalX = -Math.sin(angle), normalY = Math.cos(angle);
-
-        const zStep = 7;
-        mainLine.points([
-          x1, y1,
-          midX - zStep * Math.cos(angle), midY - zStep * Math.sin(angle),
-          midX - zStep * normalX, midY - zStep * normalY,
-          midX + zStep * normalX, midY + zStep * normalY,
-          midX + zStep * Math.cos(angle), midY + zStep * Math.sin(angle),
-          x2, y2
-        ]);
-
-        const slashBaseX = x1 + (x2 - x1) * 0.72;
-        const slashBaseY = y1 + (y2 - y1) * 0.72;
-        renderSlashes(slashBaseX, slashBaseY, angle, normalX, normalY, serviceData.wireCount);
-
+        const normalX = -Math.sin(angle), normalY = Math.cos(angle), zStep = 7;
+        mainLine.points([x1, y1, midX - zStep * Math.cos(angle), midY - zStep * Math.sin(angle), midX - zStep * normalX, midY - zStep * normalY, midX + zStep * normalX, midY + zStep * normalY, midX + zStep * Math.cos(angle), midY + zStep * Math.sin(angle), x2, y2]);
+        renderSlashes(x1 + (x2 - x1) * 0.72, y1 + (y2 - y1) * 0.72, angle, normalX, normalY, serviceData.wireCount);
         nodeBadge.position({ x: x2, y: y2 });
       }
 
-      group.updateEndpoints = function(pt1, pt2) {
-        h1.position(pt1);
-        h2.position(pt2);
-        renderPts(pt1.x, pt1.y, pt2.x, pt2.y);
-      };
+      group.updateEndpoints = function(pt1, pt2) { h1.position(pt1); h2.position(pt2); renderPts(pt1.x, pt1.y, pt2.x, pt2.y); };
+      group.setWireCount = function(cnt) { serviceData.wireCount = cnt; renderPts(h1.x(), h1.y(), h2.x(), h2.y()); refreshServiceLinesIndex(); };
 
-      group.setWireCount = function(cnt) {
-        serviceData.wireCount = cnt;
-        renderPts(h1.x(), h1.y(), h2.x(), h2.y());
-        refreshServiceLinesIndex();
-      };
-
-      h1.on('dragmove', (e) => { 
-        e.cancelBubble = true; 
-        renderPts(h1.x(), h1.y(), h2.x(), h2.y()); 
-        serviceData.meters = Math.round(Math.hypot(h2.x() - h1.x(), h2.y() - h1.y()) / PX_PER_METER);
-        refreshServiceLinesIndex();
-      });
-      h2.on('dragmove', (e) => { 
-        e.cancelBubble = true; 
-        renderPts(h1.x(), h1.y(), h2.x(), h2.y()); 
-        serviceData.meters = Math.round(Math.hypot(h2.x() - h1.x(), h2.y() - h1.y()) / PX_PER_METER);
-        refreshServiceLinesIndex();
-      });
-
-      h1.on('dragend', saveState);
-      h2.on('dragend', saveState);
-      group.on('dragend', saveState);
-
+      h1.on('dragmove', (e) => { e.cancelBubble = true; renderPts(h1.x(), h1.y(), h2.x(), h2.y()); serviceData.meters = Math.round(Math.hypot(h2.x() - h1.x(), h2.y() - h1.y()) / PX_PER_METER); refreshServiceLinesIndex(); });
+      h2.on('dragmove', (e) => { e.cancelBubble = true; renderPts(h1.x(), h1.y(), h2.x(), h2.y()); serviceData.meters = Math.round(Math.hypot(h2.x() - h1.x(), h2.y() - h1.y()) / PX_PER_METER); refreshServiceLinesIndex(); });
+      h1.on('dragend', saveState); h2.on('dragend', saveState); group.on('dragend', saveState);
       group.add(mainLine, slashGroup, nodeBadge, h1, h2);
-
-      group.on('click', (e) => {
-        if (currentMode === 'select') { 
-          e.cancelBubble = true; 
-          tr.nodes([group]); 
-          const wireInput = document.getElementById('prop-wire-count');
-          if (wireInput) wireInput.value = serviceData.wireCount;
-          drawLayer.draw(); 
-        }
-      });
-
+      group.on('click', (e) => { if (currentMode === 'select') { e.cancelBubble = true; tr.nodes([group]); const wireInput = document.getElementById('prop-wire-count'); if (wireInput) wireInput.value = serviceData.wireCount; drawLayer.draw(); } });
       group.serviceData = serviceData;
       renderPts(p1.x, p1.y, p2.x, p2.y);
-      drawLayer.add(group);
-      drawLayer.draw();
+      drawLayer.add(group); drawLayer.draw();
       return group;
     }
 
@@ -810,42 +806,23 @@
 
     document.getElementById('prop-wire-count')?.addEventListener('change', (e) => {
       const cnt = parseInt(e.target.value);
-      tr.nodes().forEach(node => {
-        if (node.setWireCount) node.setWireCount(cnt);
-      });
+      tr.nodes().forEach(node => { if (node.setWireCount) node.setWireCount(cnt); });
       saveState();
     });
 
     function getOrCreateSummaryBox() {
       if (summaryGroup && summaryGroup.getStage()) return summaryGroup;
-
       const transform = stage.getAbsoluteTransform().copy().invert();
       const pos = transform.point({ x: 30, y: 30 });
-
       summaryGroup = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
       summaryRectNode = new Konva.Rect({ stroke: 'red', strokeWidth: 1.8, fill: 'rgba(255, 255, 255, 0.95)' });
-      summaryTextNode = new Konva.Text({
-        text: '【外線材料彙整規格】',
-        fontSize: 12,
-        fontStyle: 'bold',
-        fill: 'red',
-        padding: 8,
-        lineHeight: 1.45
-      });
-
-      function updateBox() {
-        summaryRectNode.width(summaryTextNode.width());
-        summaryRectNode.height(summaryTextNode.height());
-      }
+      summaryTextNode = new Konva.Text({ text: '【外線材料彙整規格】', fontSize: 12, fontStyle: 'bold', fill: 'red', padding: 8, lineHeight: 1.45 });
+      function updateBox() { summaryRectNode.width(summaryTextNode.width()); summaryRectNode.height(summaryTextNode.height()); }
       updateBox();
       makeEditable(summaryTextNode, updateBox);
-
       summaryGroup.add(summaryRectNode, summaryTextNode);
-      summaryGroup.on('click', (e) => {
-        if (currentMode === 'select') { e.cancelBubble = true; tr.nodes([summaryGroup]); drawLayer.draw(); }
-      });
+      summaryGroup.on('click', (e) => { if (currentMode === 'select') { e.cancelBubble = true; tr.nodes([summaryGroup]); drawLayer.draw(); } });
       summaryGroup.on('dragend', saveState);
-
       drawLayer.add(summaryGroup);
       refreshServiceLinesIndex();
       return summaryGroup;
@@ -855,77 +832,47 @@
     document.getElementById('prop-font-size')?.addEventListener('change', (e) => {
       const size = parseInt(e.target.value);
       tr.nodes().forEach(node => {
-        const textNodes = node.find('Text');
-        textNodes.forEach(t => t.fontSize(size));
-        const rectNodes = node.find('Rect');
-        if (rectNodes[0] && textNodes[0]) {
-          rectNodes[0].width(textNodes[0].width());
-          rectNodes[0].height(textNodes[0].height());
-        }
+        const textNodes = node.find('Text'); textNodes.forEach(t => t.fontSize(size));
+        const rectNodes = node.find('Rect'); if (rectNodes[0] && textNodes[0]) { rectNodes[0].width(textNodes[0].width()); rectNodes[0].height(textNodes[0].height()); }
       });
-      drawLayer.draw();
-      saveState();
+      drawLayer.draw(); saveState();
     });
 
     function toggleSelectedBold() {
-      tr.nodes().forEach(node => {
-        const textNodes = node.find('Text');
-        textNodes.forEach(t => {
-          t.fontStyle(t.fontStyle() === 'bold' ? 'normal' : 'bold');
-        });
-      });
-      drawLayer.draw();
-      saveState();
+      tr.nodes().forEach(node => { node.find('Text').forEach(t => { t.fontStyle(t.fontStyle() === 'bold' ? 'normal' : 'bold'); }); });
+      drawLayer.draw(); saveState();
     }
     document.getElementById('prop-bold-btn')?.addEventListener('click', toggleSelectedBold);
     document.getElementById('btn-toggle-bold')?.addEventListener('click', toggleSelectedBold);
 
     window.applyColor = function(color) {
-      tr.nodes().forEach(node => {
-        node.find('Text').forEach(t => t.fill(color));
-        node.find('Rect').forEach(r => r.stroke(color));
-        node.find('Line').forEach(l => l.stroke(color));
-      });
-      drawLayer.draw();
-      saveState();
+      tr.nodes().forEach(node => { node.find('Text').forEach(t => t.fill(color)); node.find('Rect').forEach(r => r.stroke(color)); node.find('Line').forEach(l => l.stroke(color)); });
+      drawLayer.draw(); saveState();
     };
 
     function makeEditable(konvaText, onDone) {
       konvaText.on('dblclick', () => {
         const textPosition = konvaText.getAbsolutePosition();
         const stageBox = stage.container().getBoundingClientRect();
-
         const area = document.createElement('textarea');
         document.body.appendChild(area);
-
         area.value = konvaText.text();
         area.style.position = 'absolute';
         area.style.top = `${stageBox.top + textPosition.y}px`;
         area.style.left = `${stageBox.left + textPosition.x}px`;
         area.style.width = `${Math.max(konvaText.width() * stage.scaleX() + 40, 200)}px`;
         area.style.height = `${Math.max(konvaText.height() * stage.scaleY() + 30, 90)}px`;
-        area.style.fontSize = '12px';
-        area.style.fontWeight = 'bold';
-        area.style.lineHeight = '1.35';
-        area.style.border = '2px solid #0066FF';
-        area.style.padding = '4px';
-        area.style.zIndex = '1000';
-        area.style.background = '#fff';
-        area.style.color = '#000';
+        area.style.fontSize = '12px'; area.style.fontWeight = 'bold'; area.style.lineHeight = '1.35';
+        area.style.border = '2px solid #0066FF'; area.style.padding = '4px'; area.style.zIndex = '1000';
+        area.style.background = '#fff'; area.style.color = '#000';
         area.focus();
-
         function finish() {
           konvaText.text(area.value);
           if (area.parentNode) area.parentNode.removeChild(area);
           if (onDone) onDone();
-          drawLayer.draw();
-          saveState();
+          drawLayer.draw(); saveState();
         }
-
-        area.addEventListener('keydown', e => {
-          if (e.key === 'Escape') finish();
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) finish();
-        });
+        area.addEventListener('keydown', e => { if (e.key === 'Escape') finish(); if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) finish(); });
         area.addEventListener('blur', finish);
       });
     }
@@ -934,57 +881,35 @@
     function findInnerGridBox(ctx, W, H) {
       const imgData = ctx.getImageData(0, 0, W, H);
       const data = imgData.data;
-
       function isBlackPx(x, y) {
         const i = (Math.floor(y) * W + Math.floor(x)) * 4;
         return data[i] < 110 && data[i+1] < 110 && data[i+2] < 110 && data[i+3] > 100;
       }
-
       function countH(y, startX, endX) {
-        let cnt = 0;
-        const step = 4;
-        for (let x = startX; x <= endX; x += step) {
-          if (isBlackPx(x, y)) cnt++;
-        }
+        let cnt = 0, step = 4;
+        for (let x = startX; x <= endX; x += step) { if (isBlackPx(x, y)) cnt++; }
         return cnt / ((endX - startX) / step);
       }
-
       function countV(x, startY, endY) {
-        let cnt = 0;
-        const step = 4;
-        for (let y = startY; y <= endY; y += step) {
-          if (isBlackPx(x, y)) cnt++;
-        }
+        let cnt = 0, step = 4;
+        for (let y = startY; y <= endY; y += step) { if (isBlackPx(x, y)) cnt++; }
         return cnt / ((endY - startY) / step);
       }
-
       let topLines = [];
       for (let y = Math.floor(H * 0.02); y < H * 0.20; y++) {
-        const ratio = countH(y, W * 0.25, W * 0.75);
-        if (ratio > 0.65) {
-          if (topLines.length === 0 || y - topLines[topLines.length - 1] > 6) topLines.push(y);
-        }
+        if (countH(y, W * 0.25, W * 0.75) > 0.65) { if (topLines.length === 0 || y - topLines[topLines.length - 1] > 6) topLines.push(y); }
       }
       let top = topLines.length >= 2 ? topLines[1] : (topLines[0] ? topLines[0] + 15 : Math.floor(H * 0.046));
-
       let leftLines = [];
       for (let x = Math.floor(W * 0.015); x < W * 0.20; x++) {
-        const ratio = countV(x, H * 0.25, H * 0.65);
-        if (ratio > 0.65) {
-          if (leftLines.length === 0 || x - leftLines[leftLines.length - 1] > 6) leftLines.push(x);
-        }
+        if (countV(x, H * 0.25, H * 0.65) > 0.65) { if (leftLines.length === 0 || x - leftLines[leftLines.length - 1] > 6) leftLines.push(x); }
       }
       let left = leftLines.length >= 2 ? leftLines[1] : (leftLines[0] ? leftLines[0] + 15 : Math.floor(W * 0.047));
-
       let rightLines = [];
       for (let x = Math.floor(W * 0.985); x > W * 0.80; x--) {
-        const ratio = countV(x, H * 0.25, H * 0.65);
-        if (ratio > 0.65) {
-          if (rightLines.length === 0 || rightLines[rightLines.length - 1] - x > 6) rightLines.push(x);
-        }
+        if (countV(x, H * 0.25, H * 0.65) > 0.65) { if (rightLines.length === 0 || rightLines[rightLines.length - 1] - x > 6) rightLines.push(x); }
       }
       let right = rightLines.length >= 2 ? rightLines[1] : (rightLines[0] ? rightLines[0] - 15 : Math.floor(W * 0.953));
-
       const measuredW = right - left;
       const targetH = Math.round(measuredW * (500 / 800));
       return { x: left, y: top, w: measuredW, h: targetH };
@@ -995,23 +920,18 @@
       const pdf = await pdfjsLib.getDocument(typedarray).promise;
       const page = await pdf.getPage(1);
       const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
-
       const offCanvas = document.createElement('canvas');
-      offCanvas.width = viewport.width;
-      offCanvas.height = viewport.height;
+      offCanvas.width = viewport.width; offCanvas.height = viewport.height;
       const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
       await page.render({ canvasContext: offCtx, viewport: viewport }).promise;
 
       if (!cachedCrop) {
         cachedCrop = findInnerGridBox(offCtx, viewport.width, viewport.height);
-        MAP_W = cachedCrop.w;
-        MAP_H = cachedCrop.h;
+        MAP_W = cachedCrop.w; MAP_H = cachedCrop.h;
         PX_PER_METER = MAP_W / 800;
       }
-
       const croppedCanvas = document.createElement('canvas');
-      croppedCanvas.width = MAP_W;
-      croppedCanvas.height = MAP_H;
+      croppedCanvas.width = MAP_W; croppedCanvas.height = MAP_H;
       const croppedCtx = croppedCanvas.getContext('2d');
       croppedCtx.drawImage(offCanvas, cachedCrop.x, cachedCrop.y, MAP_W, MAP_H, 0, 0, MAP_W, MAP_H);
       return croppedCanvas;
@@ -1036,6 +956,7 @@
 
     async function loadPdfFile(file, mapName) {
       currentMapId = mapName;
+      currentMapName = mapName;
       cachedCrop = null;
       const statusEl = document.getElementById('index-status');
       if (statusEl) statusEl.innerText = `解析高解析主圖: ${file.name}...`;
@@ -1047,7 +968,6 @@
         const match = mapName.match(/G?(\d{2})(\d{2})/);
         if (match) render9Grid(parseInt(match[1]), parseInt(match[2]));
 
-        // 單張主圖背景與固定當前圖號的 10×16 網格浮水印
         const mainGroup = new Konva.Group();
         const mainImage = new Konva.Image({ x: 0, y: 0, image: croppedCanvas, width: MAP_W, height: MAP_H });
         const watermarks = createMapGridWatermarks(mapName, MAP_W, MAP_H, 0, 0);
@@ -1055,6 +975,9 @@
         mainGroup.add(mainImage, watermarks);
         bgLayer.add(mainGroup);
         bgLayer.draw();
+
+        const inputVal = document.getElementById('map-search-input').value.trim() || mapName;
+        updatePreviewMap(inputVal);
 
         const fitScale = Math.min((container.offsetWidth * 0.92) / MAP_W, (container.offsetHeight * 0.92) / MAP_H);
         stage.scale({ x: fitScale, y: fitScale });
@@ -1087,14 +1010,11 @@
           const targetY = centerY + cell.dy;
           const mapCode = `${targetX}${targetY}`;
           const fullMapId = `G${mapCode}`;
-
           const el = document.createElement('div');
           el.className = 'grid-9-cell';
           el.innerText = mapCode;
-
           if (cell.dx === 0 && cell.dy === 0) {
-            el.classList.add('center');
-            el.title = '目前主圖';
+            el.classList.add('center'); el.title = '目前主圖';
           } else {
             el.title = `點擊咬合: ${fullMapId}`;
             el.onclick = () => toggleStitchMap(fullMapId, cell.dx, cell.dy, el);
@@ -1112,30 +1032,20 @@
         bgLayer.draw();
         return;
       }
-
       let file = pdfFileMap.get(mapId) || pdfFileMap.get(mapId.replace('G', ''));
-      if (!file) {
-        alert(`資料夾內找不到相鄰圖資 [${mapId}.PDF]！`);
-        return;
-      }
-
+      if (!file) { alert(`資料夾內找不到相鄰圖資 [${mapId}.PDF]！`); return; }
       const statusEl = document.getElementById('index-status');
       if (statusEl) statusEl.innerText = `正在無縫拼接 ${mapId}...`;
       try {
         const croppedCanvas = await renderAndCropPdfTile(file);
-        const worldX = relX * MAP_W;
-        const worldY = -relY * MAP_H;
-
+        const worldX = relX * MAP_W, worldY = -relY * MAP_H;
         const stitchGroup = new Konva.Group();
         const imgNode = new Konva.Image({ x: 0, y: 0, image: croppedCanvas, width: MAP_W, height: MAP_H });
         const watermarks = createMapGridWatermarks(mapId, MAP_W, MAP_H, 0, 0);
-
         stitchGroup.add(imgNode, watermarks);
         stitchGroup.position({ x: worldX, y: worldY });
-
         bgLayer.add(stitchGroup);
         bgLayer.draw();
-
         stitchedMaps.set(mapId, stitchGroup);
         element.classList.add('stitched');
         if (statusEl) statusEl.innerText = `✅ 已咬合: ${mapId}`;
@@ -1143,42 +1053,31 @@
     }
 
     function triggerSmartSearch() {
-      let raw = document.getElementById('map-search-input')?.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || '';
-      if (!raw) return alert('請輸入圖號！');
+      let raw = document.getElementById('map-search-input')?.value.trim().toUpperCase() || '';
+      if (!raw) return alert('請輸入圖號或完整桿號！');
+      
+      updatePreviewMap(raw);
 
       let match = raw.match(/(\d{4})/);
       let num4 = match ? match[1] : raw.substring(0, 4);
-
-      let targetMapId = 'G' + num4;
-      let targetMapIdNoG = num4;
-
+      let targetMapId = 'G' + num4, targetMapIdNoG = num4;
       let file = pdfFileMap.get(targetMapId) || pdfFileMap.get(targetMapIdNoG);
       if (!file) file = pdfFileMap.get(raw);
-
-      if (file) {
-        loadPdfFile(file, targetMapId);
-      } else {
-        alert(`找不到圖資 [${targetMapId}.PDF]！\n請確認已掛載包含此圖之資料夾。`);
-      }
+      if (file) { loadPdfFile(file, targetMapId); } else { alert(`找不到圖資 [${targetMapId}.PDF]！`); }
     }
 
     document.getElementById('search-load-btn')?.addEventListener('click', triggerSmartSearch);
-    document.getElementById('map-search-input')?.addEventListener('keydown', e => { 
-      if (e.key === 'Enter') triggerSmartSearch(); 
-    });
+    document.getElementById('map-search-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') triggerSmartSearch(); });
 
     document.getElementById('export-btn')?.addEventListener('click', function() {
       tr.nodes([]);
       stage.find('.adaptive-handle').forEach(h => h.visible(false));
       stage.find('.pole-handle').forEach(h => h.visible(false));
       stage.draw();
-
       const dataURL = stage.toDataURL({ pixelRatio: 2 });
       const link = document.createElement('a');
       link.download = `台電外線設計竣工圖_${currentMapId || 'EXPORT'}.png`;
-      link.href = dataURL;
-      link.click();
-
+      link.href = dataURL; link.click();
       stage.find('.adaptive-handle').forEach(h => h.visible(true));
       stage.draw();
     });
