@@ -2,301 +2,1188 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>台電接戶線快速繪圖工具 - 原型</title>
+  <title>台電外線接戶圖快速繪圖工具 (無紅點外線專用版)</title>
   <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { display: flex; height: 100vh; overflow: hidden; background: #1e1e1e; color: #eee; }
-    #sidebar { width: 340px; background: #252526; padding: 16px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid #3e3e42; overflow-y: auto; }
-    #canvas-container { flex: 1; position: relative; background: #333; overflow: hidden; }
-    h2 { font-size: 16px; margin-bottom: 4px; color: #4fc1ff; }
-    .btn-group { display: flex; flex-direction: column; gap: 6px; }
-    button { padding: 8px 12px; background: #0e639c; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: left; font-size: 13px; }
-    button:hover { background: #1177bb; }
-    button.active { background: #388a34; }
-    .tool-btn { text-align: center; font-weight: bold; }
-    .template-btn { background: #333; border: 1px solid #555; }
-    .template-btn:hover { background: #444; }
-    .info { font-size: 12px; color: #888; line-height: 1.4; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
+    body { display: flex; height: 100vh; overflow: hidden; background: #0b0f19; color: #f8fafc; }
+
+    #left-bar { width: 280px; min-width: 280px; background: #131d31; padding: 12px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid #1e293b; z-index: 10; overflow-y: auto; }
+    #canvas-container { flex: 1; position: relative; background: #e2e8f0; overflow: hidden; }
+
+    #excel-props-bar {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      border: 1px solid #38bdf8;
+      border-radius: 6px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 50;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      font-size: 12px;
+    }
+    #excel-props-bar select, #excel-props-bar button {
+      background: #0f172a;
+      color: #fff;
+      border: 1px solid #475569;
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #excel-props-bar button:hover { background: #334155; }
+    .color-btn { width: 18px; height: 18px; border-radius: 3px; border: 1px solid #fff; cursor: pointer; display: inline-block; }
+
+    h2 { font-size: 13px; color: #38bdf8; margin-bottom: 2px; }
+    button { padding: 6px 10px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; text-align: left; }
+    button:hover { background: #1d4ed8; }
+    button.active { background: #16a34a !important; font-weight: bold; }
+    
+    .tool-btn { text-align: left; display: flex; justify-content: space-between; align-items: center; }
+    .kbd { background: #0f172a; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 10px; color: #94a3b8; border: 1px solid #334155; }
+    
     input[type="file"] { display: none; }
-    .file-label { display: block; padding: 8px; background: #3c3c3c; text-align: center; border-radius: 4px; cursor: pointer; font-size: 13px; }
-    .file-label:hover { background: #4c4c4c; }
+    .file-label { display: block; padding: 7px; background: #2563eb; text-align: center; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+    .tips { font-size: 11px; color: #94a3b8; line-height: 1.4; }
+
+    .action-card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px;
+    }
+
+    .grid-9-box {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+      background: #0f172a;
+      padding: 6px;
+      border: 1px solid #334155;
+      border-radius: 6px;
+    }
+    .grid-9-cell {
+      height: 38px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: bold;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+    .grid-9-cell:hover { background: #334155; color: #fff; border-color: #38bdf8; }
+    .grid-9-cell.center { background: #0284c7; color: #fff; border-color: #38bdf8; cursor: default; }
+    .grid-9-cell.stitched { background: #16a34a; color: #fff; border-color: #4ade80; }
+
+    .cursor-crosshair { cursor: crosshair !important; }
+    .cursor-grab { cursor: grab !important; }
   </style>
 </head>
 <body>
 
-  <div id="sidebar">
-    <h2>1. 底圖來源</h2>
-    <label class="file-label" for="bg-upload">選擇底圖圖檔 (JPG/PNG)</label>
-    <input type="file" id="bg-upload" accept="image/*">
-    <div class="info">💡 亦可直接在網頁上按 <b>Ctrl + V</b> 貼上剪貼簿截圖</div>
+  <div id="left-bar">
+    <h2>1. 圖資檢索 (巨擎外線核心)</h2>
+    <label class="file-label" for="folder-upload" style="background: #334155;">📂 掛載圖資資料夾</label>
+    <input type="file" id="folder-upload" webkitdirectory directory multiple>
 
-    <hr style="border: 0.5px solid #444;">
+    <div style="display: flex; gap: 4px;">
+      <input type="text" id="map-search-input" placeholder="圖號 (如 4261 或 G4261)" 
+             style="flex: 1; padding: 5px 6px; background: #0f172a; color: #facc15; border: 1px solid #334155; border-radius: 4px; text-transform: uppercase; font-size: 12px; font-family: monospace; font-weight: bold;">
+      <button id="search-load-btn" style="padding: 5px 8px; background: #16a34a;">載入</button>
+    </div>
+    <div id="index-status" class="tips" style="color: #38bdf8;">尚未掛載目錄</div>
 
-    <h2>2. 繪圖模式</h2>
-    <div class="btn-group">
-      <button id="mode-select" class="tool-btn active">🖐️ 選取 / 拖曳元素</button>
-      <button id="mode-service-line" class="tool-btn">⚡ 繪製接戶線 (點2下)</button>
-      <button id="mode-callout" class="tool-btn">💬 放置紅框引線標註</button>
+    <hr style="border: 0.5px solid #334155;">
+
+    <h2>2. 相鄰跨圖九宮格 (無縫咬合)</h2>
+    <div class="action-card">
+      <div id="grid-9-container" class="grid-9-box">
+        <div class="tips" style="grid-column: span 3; text-align: center; padding: 10px 0;">載入主圖後自動產生九宮格</div>
+      </div>
+      <div class="tips" style="color: #4ade80;">✅ 純紅框內細線對齊，0白邊無縫連接</div>
     </div>
 
-    <hr style="border: 0.5px solid #444;">
+    <hr style="border: 0.5px solid #334155;">
 
-    <h2>3. 接戶線規格</h2>
-    <div class="btn-group">
-      <label style="font-size: 13px;">線徑種類：</label>
-      <select id="line-spec" style="padding: 6px; background: #333; color: white; border: 1px solid #555;">
-        <option value="3C22PV">3C22PV (單相三線 / 3槓)</option>
-        <option value="4C22PV">4C22PV (三相四線 / 4槓)</option>
-        <option value="4C60PV">4C60PV (三相四線 / 4槓)</option>
-      </select>
+    <h2>3. 雙排快捷標註 (ASDF / ZXCV)</h2>
+    <div class="action-card">
+      <div style="font-size: 11px; font-weight: bold; color: #94a3b8;">【底排：繪圖定位】</div>
+      <button id="mode-pan" class="tool-btn active"><span>🖐️️ 平移地圖</span><span class="kbd">Z</span></button>
+      <button id="mode-select" class="tool-btn"><span>↖️ 選取 / 框選</span><span class="kbd">X</span></button>
+      <button id="mode-draw-line" class="tool-btn" style="background: #0284c7;"><span>⚡ 壓著拉接戶線</span><span class="kbd">C</span></button>
+      <button id="mode-add-box" class="tool-btn" style="background: #dc2626;"><span>📌 標示框 (管穿/鐵件)</span><span class="kbd">V</span></button>
     </div>
 
-    <hr style="border: 0.5px solid #444;">
-
-    <h2>4. 快速填入標註模板</h2>
-    <div class="btn-group">
-      <button class="template-btn" onclick="addTemplate('壓接6戶\nC22-22*18\n單壓*18')">📌 壓接 6 戶套管標註</button>
-      <button class="template-btn" onclick="addTemplate('五聯架*1\n伸出*1\n軸*5\nRH*4\nC125-60*2')">📌 五聯架 + 鐵件更新組</button>
-      <button class="template-btn" onclick="addTemplate('管穿 3C22PV 24M\n只裝沒拆')">📌 建物管穿線路標註</button>
+    <div class="action-card">
+      <div style="font-size: 11px; font-weight: bold; color: #94a3b8;">【中排：排版管理】</div>
+      <button id="btn-add-summary" class="tool-btn" style="background: #b45309;"><span>📋 材料彙整大框</span><span class="kbd">A</span></button>
+      <button id="btn-cycle-wire" class="tool-btn" style="background: #475569;"><span>🔁 切換線數 (1~5線)</span><span class="kbd">S</span></button>
+      <button id="btn-delete" class="tool-btn" style="background: #991b1b;"><span>🗑️ 刪除所選物件</span><span class="kbd">D</span></button>
+      <button id="btn-toggle-bold" class="tool-btn" style="background: #475569;"><span>🅱️ 切換粗體</span><span class="kbd">F</span></button>
     </div>
 
-    <hr style="border: 0.5px solid #444;">
+    <hr style="border: 0.5px solid #334155;">
 
-    <h2>5. 成果產出</h2>
-    <button id="export-btn" style="background: #2ea043; text-align: center; font-weight: bold;">💾 匯出高畫質圖檔 (PNG)</button>
+    <h2>4. 編輯歷史與匯出</h2>
+    <div style="display: flex; gap: 4px;">
+      <button id="btn-undo" style="flex: 1; text-align: center; background: #334155;">↩️ 復原 (Ctrl+Z)</button>
+      <button id="btn-redo" style="flex: 1; text-align: center; background: #334155;">↪️ 重做 (Ctrl+Y)</button>
+    </div>
+    <button id="export-btn" style="background: #16a34a; text-align: center; font-weight: bold; margin-top: 4px;">💾 匯出高解析圖面 (PNG)</button>
   </div>
 
-  <div id="canvas-container"></div>
+  <div id="canvas-container">
+    <div id="excel-props-bar">
+      <span style="color: #94a3b8; font-weight: bold;">樣式:</span>
+      <select id="prop-font-size">
+        <option value="11">11 px</option>
+        <option value="12" selected>12 px</option>
+        <option value="14">14 px</option>
+        <option value="16">16 px</option>
+        <option value="18">18 px</option>
+      </select>
+      <button id="prop-bold-btn" style="font-weight: bold;">B</button>
+      
+      <span style="color: #94a3b8; font-weight: bold; margin-left: 6px;">線數:</span>
+      <select id="prop-wire-count">
+        <option value="1">1 條</option>
+        <option value="2">2 條</option>
+        <option value="3" selected>3 條 (標準)</option>
+        <option value="4">4 條</option>
+        <option value="5">5 條</option>
+      </select>
+
+      <div style="display: flex; gap: 4px; align-items: center; margin-left: 6px;">
+        <span class="color-btn" style="background: #dc2626;" onclick="applyColor('#dc2626')"></span>
+        <span class="color-btn" style="background: #2563eb;" onclick="applyColor('#2563eb')"></span>
+        <span class="color-btn" style="background: #000000;" onclick="applyColor('#000000')"></span>
+        <span class="color-btn" style="background: #16a34a;" onclick="applyColor('#16a34a')"></span>
+      </div>
+    </div>
+  </div>
 
   <script>
-    const width = window.innerWidth - 340;
-    const height = window.innerHeight;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+    const PDF_RENDER_SCALE = 3.5;
+    let MAP_W = 0;
+    let MAP_H = 0;
+    let PX_PER_METER = 1;
+    let cachedCrop = null;
+
+    const STYLE = {
+      SERVICE_STROKE: 2.5,
+      HANDLE_RADIUS: 4.5
+    };
+
+    const container = document.getElementById('canvas-container');
     const stage = new Konva.Stage({
       container: 'canvas-container',
-      width: width,
-      height: height,
-      draggable: false
+      width: container.offsetWidth,
+      height: container.offsetHeight,
+      draggable: true
+    });
+
+    window.addEventListener('resize', () => {
+      stage.width(container.offsetWidth);
+      stage.height(container.offsetHeight);
     });
 
     const bgLayer = new Konva.Layer();
     const drawLayer = new Konva.Layer();
-    stage.add(bgLayer);
-    stage.add(drawLayer);
+    const ghostLayer = new Konva.Layer(); 
+    const selectionLayer = new Konva.Layer(); 
+    stage.add(bgLayer, drawLayer, ghostLayer, selectionLayer);
 
-    let currentMode = 'select'; // 'select' | 'service-line' | 'callout'
-    let lineStartPoint = null;
+    const tr = new Konva.Transformer({
+      rotateEnabled: false,
+      enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+    });
+    drawLayer.add(tr);
 
-    // 模式切換按鈕事件
-    const btns = {
+    let currentMode = 'pan';
+    let summaryGroup = null;
+    let summaryTextNode = null;
+    let summaryRectNode = null;
+    let currentMapId = '';
+    const stitchedMaps = new Map();
+    const activeServiceLines = [];
+
+    // 10 × 16 網格浮水印：整張圖的每一個格子中央都固定顯示當前載入的圖號（例如 G4261）
+    function createMapGridWatermarks(mapName, baseMapW, baseMapH, offsetX = 0, offsetY = 0) {
+      const group = new Konva.Group({ x: offsetX, y: offsetY, listening: false });
+
+      const cleanName = mapName.startsWith('G') ? mapName : 'G' + mapName;
+      const cols = 10;
+      const rows = 16;
+      const stepX = baseMapW / cols;
+      const stepY = baseMapH / rows;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const textNode = new Konva.Text({
+            x: (c + 0.5) * stepX,
+            y: (r + 0.5) * stepY,
+            text: cleanName,
+            fontSize: 22,
+            fontStyle: 'bold',
+            fill: 'rgba(239, 68, 68, 0.32)',
+            stroke: 'rgba(255, 255, 255, 0.35)',
+            strokeWidth: 1.2,
+            align: 'center',
+            offsetX: 32,
+            offsetY: 11,
+            listening: false
+          });
+          group.add(textNode);
+        }
+      }
+      return group;
+    }
+
+    // ==========================================
+    // 歷史紀錄 (Undo / Redo)
+    // ==========================================
+    const historyStack = [];
+    let historyStep = -1;
+    let isHistoryOperating = false;
+
+    function saveState() {
+      if (isHistoryOperating) return;
+      const state = {
+        lines: activeServiceLines.map(item => ({
+          p1: { x: item.h1.x(), y: item.h1.y() },
+          p2: { x: item.h2.x(), y: item.h2.y() },
+          wireCount: item.wireCount,
+          meters: item.meters
+        })),
+        boxes: drawLayer.find('.custom-box').map(b => ({
+          x: b.x(),
+          y: b.y(),
+          text: b.findOne('Text').text(),
+          pin: { x: b.findOne('.pole-handle').x(), y: b.findOne('.pole-handle').y() }
+        }))
+      };
+
+      historyStack.splice(historyStep + 1);
+      historyStack.push(JSON.stringify(state));
+      historyStep++;
+    }
+
+    function applyState(jsonStr) {
+      if (!jsonStr) return;
+      isHistoryOperating = true;
+      const state = JSON.parse(jsonStr);
+
+      [...activeServiceLines].forEach(item => item.group.destroy());
+      activeServiceLines.length = 0;
+      drawLayer.find('.custom-box').forEach(b => b.destroy());
+      tr.nodes([]);
+
+      state.lines.forEach((l) => {
+        const char = getNodeChar(activeServiceLines.length);
+        const grp = createInteractiveServiceLine(l.p1, l.p2, char, l.wireCount);
+        grp.serviceData.meters = l.meters;
+        activeServiceLines.push(grp.serviceData);
+      });
+
+      state.boxes.forEach(b => {
+        const grp = createCustomAnnotationBox(b.x, b.y, b.text);
+        const pin = grp.findOne('.pole-handle');
+        if (pin && b.pin) pin.position(b.pin);
+        if (grp.updateLine) grp.updateLine();
+      });
+
+      refreshServiceLinesIndex();
+      drawLayer.draw();
+      isHistoryOperating = false;
+    }
+
+    function undo() {
+      if (historyStep > 0) {
+        historyStep--;
+        applyState(historyStack[historyStep]);
+      }
+    }
+
+    function redo() {
+      if (historyStep < historyStack.length - 1) {
+        historyStep++;
+        applyState(historyStack[historyStep]);
+      }
+    }
+
+    document.getElementById('btn-undo')?.addEventListener('click', undo);
+    document.getElementById('btn-redo')?.addEventListener('click', redo);
+
+    const modeBtns = {
+      'pan': document.getElementById('mode-pan'),
       'select': document.getElementById('mode-select'),
-      'service-line': document.getElementById('mode-service-line'),
-      'callout': document.getElementById('mode-callout')
+      'draw-line': document.getElementById('mode-draw-line'),
+      'add-box': document.getElementById('mode-add-box')
     };
+
+    function getNodeChar(idx) {
+      return String.fromCharCode(65 + idx);
+    }
+
+    const ghostWatermark = new Konva.Group({ visible: false, opacity: 0.85 });
+    const ghostText = new Konva.Text({ x: 18, y: 18, fontSize: 12, fontStyle: 'bold', fill: '#ffffff', padding: 4 });
+    const ghostBg = new Konva.Rect({ x: 18, y: 18, fill: '#0f172a', stroke: '#38bdf8', strokeWidth: 1.5, cornerRadius: 4 });
+    ghostWatermark.add(ghostBg, ghostText);
+
+    const ghostBoxGroup = new Konva.Group({ visible: false, opacity: 0.8 });
+    const ghostBoxPin = new Konva.Line({ stroke: 'red', strokeWidth: 1.5, dash: [4, 2], points: [0, 0, 35, -25] });
+    const ghostBoxRect = new Konva.Rect({ x: 35, y: -40, width: 125, height: 45, stroke: 'red', strokeWidth: 1.5, fill: 'rgba(255,255,255,0.92)' });
+    const ghostBoxText = new Konva.Text({ x: 39, y: -36, text: '管穿 11/2" 13M\nC22-22*3', fontSize: 11, fill: 'red', fontStyle: 'bold' });
+    ghostBoxGroup.add(ghostBoxPin, ghostBoxRect, ghostBoxText);
+    ghostLayer.add(ghostWatermark, ghostBoxGroup);
 
     function setMode(mode) {
       currentMode = mode;
-      Object.keys(btns).forEach(m => btns[m].classList.remove('active'));
-      btns[mode].classList.add('active');
-      stage.draggable(mode === 'select');
+      Object.keys(modeBtns).forEach(m => {
+        if (modeBtns[m]) modeBtns[m].classList.remove('active');
+      });
+      if (modeBtns[mode]) modeBtns[mode].classList.add('active');
+      stage.draggable(mode === 'pan');
+
+      ghostWatermark.visible(false);
+      ghostBoxGroup.visible(false);
+      ghostLayer.batchDraw();
+
+      if (container) {
+        if (mode === 'draw-line' || mode === 'add-box') container.className = 'cursor-crosshair';
+        else if (mode === 'pan') container.className = 'cursor-grab';
+        else container.className = '';
+      }
+
+      if (mode === 'draw-line') {
+        const nextChar = getNodeChar(activeServiceLines.length);
+        ghostText.text(`⚡ 接戶線 [${nextChar}]：壓著電桿拖曳至用戶端放開`);
+        ghostBg.width(ghostText.width());
+        ghostBg.height(ghostText.height());
+        ghostWatermark.visible(true);
+      } else if (mode === 'add-box') {
+        ghostBoxGroup.visible(true);
+      }
+
+      if (mode !== 'select') {
+        tr.nodes([]);
+        drawLayer.find('.pole-handle').forEach(h => h.visible(false));
+        drawLayer.draw();
+      }
     }
 
-    btns['select'].onclick = () => setMode('select');
-    btns['service-line'].onclick = () => setMode('service-line');
-    btns['callout'].onclick = () => setMode('callout');
+    if (modeBtns['pan']) modeBtns['pan'].onclick = () => setMode('pan');
+    if (modeBtns['select']) modeBtns['select'].onclick = () => setMode('select');
+    if (modeBtns['draw-line']) modeBtns['draw-line'].onclick = () => setMode('draw-line');
+    if (modeBtns['add-box']) modeBtns['add-box'].onclick = () => setMode('add-box');
 
-    // 載入底圖處理
-    function loadBackground(imageObj) {
-      bgLayer.destroyChildren();
-      const konvaImg = new Konva.Image({
-        x: 0,
-        y: 0,
-        image: imageObj,
-        draggable: false
-      });
-      bgLayer.add(konvaImg);
-      bgLayer.draw();
-    }
+    window.addEventListener('keydown', (e) => {
+      if (['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) return;
 
-    document.getElementById('bg-upload').addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const img = new Image();
-        img.onload = () => loadBackground(img);
-        img.src = evt.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // 支援 Ctrl+V 貼上截圖
-    window.addEventListener('paste', function(e) {
-      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-      for (let item of items) {
-        if (item.type.indexOf('image') === 0) {
-          const blob = item.getAsFile();
-          const reader = new FileReader();
-          reader.onload = function(evt) {
-            const img = new Image();
-            img.onload = () => loadBackground(img);
-            img.src = evt.target.result;
-          };
-          reader.readAsDataURL(blob);
-        }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
       }
-    });
-
-    // 畫布點擊事件
-    stage.on('click', function(e) {
-      const pos = stage.getPointerPosition();
-
-      if (currentMode === 'service-line') {
-        if (!lineStartPoint) {
-          lineStartPoint = pos;
-        } else {
-          createServiceLine(lineStartPoint, pos);
-          lineStartPoint = null;
-          setMode('select');
-        }
-      } else if (currentMode === 'callout') {
-        createCallout(pos.x, pos.y, '新設標註\n雙擊編輯內容');
-        setMode('select');
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+        return;
       }
+
+      const key = e.key.toLowerCase();
+      if (key === 'z') setMode('pan');
+      if (key === 'x') setMode('select');
+      if (key === 'c') setMode('draw-line');
+      if (key === 'v') setMode('add-box');
+
+      if (key === 'a') getOrCreateSummaryBox();
+      if (key === 's') cycleSelectedWireCount();
+      if (key === 'd' || e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+      if (key === 'f') toggleSelectedBold();
+
+      if (e.key === 'Escape') setMode('select');
     });
 
-    // 繪製台電接戶線（閃電折線 + 橫槓數）
-    function createServiceLine(p1, p2) {
-      const group = new Konva.Group({ draggable: true });
-      const spec = document.getElementById('line-spec').value;
-      const slashCount = spec.startsWith('3C') ? 3 : 4;
-
-      const midX = (p1.x + p2.x) / 2;
-      const midY = (p1.y + p2.y) / 2;
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const angle = Math.atan2(dy, dx);
-      const dist = Math.round(Math.hypot(dx, dy) / 10); // 假定像素比例推估米數
-
-      // 閃電折線路徑
-      const offset = 8;
-      const points = [
-        p1.x, p1.y,
-        midX - offset * Math.sin(angle), midY + offset * Math.cos(angle),
-        midX + offset * Math.sin(angle), midY - offset * Math.cos(angle),
-        p2.x, p2.y
-      ];
-
-      const line = new Konva.Line({
-        points: points,
-        stroke: 'black',
-        strokeWidth: 2,
-        tension: 0.1
+    // 動態更新材料彙整表 (幾條線就對應幾個軸與對應數量的壓接端子 C22-22*N)
+    function refreshServiceLinesIndex() {
+      activeServiceLines.forEach((item, idx) => {
+        const correctChar = getNodeChar(idx);
+        item.char = correctChar;
+        item.badgeText.text(correctChar);
       });
-      group.add(line);
 
-      // 線上斜線橫槓（代表相線數）
-      const slashLen = 12;
-      for (let i = 0; i < slashCount; i++) {
-        const offsetDist = (i - (slashCount - 1) / 2) * 6;
-        const cx = midX + offsetDist * Math.cos(angle);
-        const cy = midY + offsetDist * Math.sin(angle);
-
-        const slash = new Konva.Line({
-          points: [
-            cx - slashLen/2 * Math.cos(angle + Math.PI/4), cy - slashLen/2 * Math.sin(angle + Math.PI/4),
-            cx + slashLen/2 * Math.cos(angle + Math.PI/4), cy + slashLen/2 * Math.sin(angle + Math.PI/4)
-          ],
-          stroke: 'black',
-          strokeWidth: 2
+      if (summaryTextNode) {
+        let content = '【外線材料彙整規格】';
+        activeServiceLines.forEach(item => {
+          const w = item.wireCount;
+          content += `\n${item.char} : ${w}C22PV ${item.meters}+1M  引下管穿11/2"${w}C22PV 3+1M  軸*${w} C22-22*${w}`;
         });
-        group.add(slash);
+        summaryTextNode.text(content);
+        if (summaryRectNode) {
+          summaryRectNode.width(summaryTextNode.width());
+          summaryRectNode.height(summaryTextNode.height());
+        }
       }
-
-      // 長度與規格標記文字
-      const text = new Konva.Text({
-        x: midX - 30,
-        y: midY - 24,
-        text: `${spec} ${dist}M+1`,
-        fontSize: 12,
-        fontFamily: 'Arial',
-        fill: 'red',
-        fontStyle: 'bold'
-      });
-      group.add(text);
-
-      drawLayer.add(group);
-      drawLayer.draw();
+      drawLayer.batchDraw();
     }
 
-    // 建立紅框引線標註
-    function createCallout(x, y, defaultText) {
-      const group = new Konva.Group({
-        x: x,
-        y: y,
-        draggable: true
+    function deleteSelected() {
+      const selected = tr.nodes();
+      if (selected.length > 0) {
+        selected.forEach(node => {
+          if (node === summaryGroup) {
+            summaryGroup = null;
+            summaryTextNode = null;
+            summaryRectNode = null;
+          }
+          const idx = activeServiceLines.findIndex(item => item.group === node);
+          if (idx !== -1) activeServiceLines.splice(idx, 1);
+          node.destroy();
+        });
+        tr.nodes([]);
+        refreshServiceLinesIndex();
+        drawLayer.draw();
+        saveState();
+      }
+    }
+    document.getElementById('btn-delete')?.addEventListener('click', deleteSelected);
+
+    let selectionBox = new Konva.Rect({
+      fill: 'rgba(56, 189, 248, 0.15)',
+      stroke: '#38bdf8',
+      strokeWidth: 1,
+      dash: [4, 2],
+      visible: false
+    });
+    selectionLayer.add(selectionBox);
+
+    let selStart = null;
+    stage.on('mousedown', (e) => {
+      if (currentMode !== 'select') return;
+      if (e.target === stage || e.target.getLayer() === bgLayer) {
+        const transform = stage.getAbsoluteTransform().copy().invert();
+        selStart = transform.point(stage.getPointerPosition());
+        selectionBox.position(selStart);
+        selectionBox.width(0);
+        selectionBox.height(0);
+        selectionBox.visible(true);
+        selectionLayer.batchDraw();
+      }
+    });
+
+    const scaleBy = 1.15;
+    stage.on('wheel', (e) => {
+      e.evt.preventDefault();
+      const oldScale = stage.scaleX();
+      const pointer = stage.getPointerPosition();
+      const mousePointTo = {
+        x: (pointer.x - stage.x()) / oldScale,
+        y: (pointer.y - stage.y()) / oldScale,
+      };
+
+      let direction = e.evt.deltaY > 0 ? -1 : 1;
+      const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+      stage.scale({ x: newScale, y: newScale });
+      stage.position({
+        x: pointer.x - mousePointTo.x * newScale,
+        y: pointer.y - mousePointTo.y * newScale,
       });
 
-      const leaderLine = new Konva.Line({
-        points: [-30, 20, 0, 0],
-        stroke: 'red',
-        strokeWidth: 1.5
+      stage.find('.adaptive-handle').forEach(h => h.radius(STYLE.HANDLE_RADIUS / newScale));
+      stage.find('.adaptive-service-line').forEach(l => l.strokeWidth(STYLE.SERVICE_STROKE / newScale));
+      stage.batchDraw();
+    });
+
+    let isDrawingServiceLine = false;
+    let liveServiceGroup = null;
+    let serviceStartPt = null;
+
+    stage.on('mousedown', (e) => {
+      const transform = stage.getAbsoluteTransform().copy().invert();
+      const curPos = transform.point(stage.getPointerPosition());
+
+      if (currentMode === 'draw-line') {
+        isDrawingServiceLine = true;
+        serviceStartPt = curPos;
+        const currentChar = getNodeChar(activeServiceLines.length);
+        liveServiceGroup = createInteractiveServiceLine(curPos, curPos, currentChar, 3);
+      }
+    });
+
+    stage.on('mousemove', (e) => {
+      const transform = stage.getAbsoluteTransform().copy().invert();
+      const curPos = transform.point(stage.getPointerPosition());
+
+      if (ghostWatermark.visible()) {
+        ghostWatermark.position({ x: curPos.x, y: curPos.y });
+        ghostLayer.batchDraw();
+      }
+      if (ghostBoxGroup.visible()) {
+        ghostBoxGroup.position({ x: curPos.x, y: curPos.y });
+        ghostLayer.batchDraw();
+      }
+
+      if (isDrawingServiceLine && liveServiceGroup) {
+        liveServiceGroup.updateEndpoints(serviceStartPt, curPos);
+        const distPx = Math.hypot(curPos.x - serviceStartPt.x, curPos.y - serviceStartPt.y);
+        const meters = Math.round(distPx / PX_PER_METER);
+        const currentChar = getNodeChar(activeServiceLines.length);
+        ghostText.text(`⚡ 接戶線 [${currentChar}]：${meters} 米`);
+        ghostBg.width(ghostText.width());
+        ghostWatermark.position({ x: curPos.x, y: curPos.y });
+        ghostWatermark.visible(true);
+        drawLayer.batchDraw();
+        ghostLayer.batchDraw();
+        return;
+      }
+
+      if (selStart) {
+        const x = Math.min(selStart.x, curPos.x);
+        const y = Math.min(selStart.y, curPos.y);
+        const w = Math.abs(curPos.x - selStart.x);
+        const h = Math.abs(curPos.y - selStart.y);
+        selectionBox.position({ x, y });
+        selectionBox.width(w);
+        selectionBox.height(h);
+        selectionLayer.batchDraw();
+      }
+    });
+
+    stage.on('mouseup', (e) => {
+      const transform = stage.getAbsoluteTransform().copy().invert();
+      const curPos = transform.point(stage.getPointerPosition());
+
+      if (selStart) {
+        const selRect = selectionBox.getClientRect();
+        selectionBox.visible(false);
+        selectionLayer.batchDraw();
+        selStart = null;
+
+        const selectableNodes = drawLayer.getChildren().filter(node => node !== tr);
+        const selected = selectableNodes.filter(node => {
+          const nodeRect = node.getClientRect();
+          return (
+            nodeRect.x >= selRect.x &&
+            nodeRect.y >= selRect.y &&
+            nodeRect.x + nodeRect.width <= selRect.x + selRect.width &&
+            nodeRect.y + nodeRect.height <= selRect.y + selRect.height
+          );
+        });
+
+        tr.nodes(selected);
+        drawLayer.draw();
+        return;
+      }
+
+      if (isDrawingServiceLine && liveServiceGroup) {
+        isDrawingServiceLine = false;
+        const distPx = Math.hypot(curPos.x - serviceStartPt.x, curPos.y - serviceStartPt.y);
+        const meters = Math.round(distPx / PX_PER_METER);
+
+        liveServiceGroup.updateEndpoints(serviceStartPt, curPos);
+        liveServiceGroup.serviceData.meters = meters;
+
+        activeServiceLines.push(liveServiceGroup.serviceData);
+        refreshServiceLinesIndex();
+
+        liveServiceGroup = null;
+        serviceStartPt = null;
+        setMode('select');
+        saveState();
+      }
+    });
+
+    stage.on('click', (e) => {
+      const transform = stage.getAbsoluteTransform().copy().invert();
+      const pos = transform.point(stage.getPointerPosition());
+
+      if (currentMode === 'add-box') {
+        createCustomAnnotationBox(pos.x, pos.y);
+        setMode('select');
+        saveState();
+      }
+    });
+
+    // 自由標示框 (徹底解鎖指標端點拖曳，不被選取框鎖死)
+    function createCustomAnnotationBox(x, y, defaultText = '管穿 11/2" 13M\nC22-22*3') {
+      const group = new Konva.Group({ x: x, y: y, draggable: true, name: 'custom-box' });
+      const curScale = stage.scaleX() || 1;
+
+      const line = new Konva.Line({ stroke: 'red', strokeWidth: 1.5, dash: [4, 2] });
+      const rect = new Konva.Rect({ x: 35, y: -30, stroke: 'red', strokeWidth: 1.6, fill: 'rgba(255, 255, 255, 0.95)' });
+      const text = new Konva.Text({ x: 35, y: -30, text: defaultText, fontSize: 12, fontStyle: 'bold', fill: 'red', padding: 6, lineHeight: 1.35 });
+      
+      const pinHandle = new Konva.Circle({
+        x: 0, y: 0,
+        radius: 16 / curScale,
+        fill: 'transparent',
+        stroke: 'transparent',
+        draggable: true,
+        name: 'pole-handle'
       });
 
-      const text = new Konva.Text({
-        text: defaultText,
-        fontSize: 12,
-        fontFamily: 'Arial',
-        fill: 'red',
-        padding: 6,
-        lineHeight: 1.3
-      });
-
-      const rect = new Konva.Rect({
-        stroke: 'red',
-        strokeWidth: 1,
-        fill: 'rgba(255, 255, 255, 0.85)'
-      });
-
-      group.add(leaderLine);
-      group.add(rect);
-      group.add(text);
-
-      function updateBox() {
+      function update() {
         rect.width(text.width());
         rect.height(text.height());
+        line.points([pinHandle.x(), pinHandle.y(), rect.x(), rect.y() + rect.height() / 2]);
       }
-      updateBox();
+      group.updateLine = update;
 
-      // 雙擊編輯文字
-      text.on('dblclick', () => {
-        const val = prompt('請輸入標註文字內容 (支援換行):', text.text());
-        if (val !== null) {
-          text.text(val);
-          updateBox();
+      pinHandle.on('mousedown touchstart', (e) => { e.cancelBubble = true; });
+      pinHandle.on('dragmove', (e) => { 
+        e.cancelBubble = true; 
+        update(); 
+        drawLayer.batchDraw(); 
+      });
+      pinHandle.on('dragend', (e) => {
+        e.cancelBubble = true;
+        saveState();
+      });
+
+      update();
+      makeEditable(text, update);
+
+      group.add(line, rect, text, pinHandle);
+
+      group.on('click', (e) => {
+        if (currentMode === 'select') {
+          e.cancelBubble = true;
+          tr.nodes([group]);
           drawLayer.draw();
         }
       });
+
+      group.on('dragend', saveState);
 
       drawLayer.add(group);
       drawLayer.draw();
       return group;
     }
 
-    // 加入預設模板
-    window.addTemplate = function(text) {
-      createCallout(150, 150, text);
+    // 接戶線實體封裝 (斜線靠向英文側/編號端)
+    function createInteractiveServiceLine(p1, p2, labelChar, wireCount = 3) {
+      const group = new Konva.Group({ draggable: true });
+      const curScale = stage.scaleX() || 1;
+
+      const mainLine = new Konva.Line({ stroke: '#0066FF', strokeWidth: STYLE.SERVICE_STROKE / curScale, name: 'adaptive-service-line' });
+      const slashGroup = new Konva.Group();
+
+      const nodeBadge = new Konva.Group({ x: p2.x, y: p2.y });
+      const badgeRect = new Konva.Rect({ x: 6, y: -13, width: 24, height: 24, stroke: '#0066FF', strokeWidth: 1.8, fill: 'white', cornerRadius: 3 });
+      const badgeText = new Konva.Text({ x: 6, y: -9, width: 24, text: labelChar, align: 'center', fontSize: 14, fill: '#0066FF', fontStyle: 'bold' });
+      makeEditable(badgeText);
+      nodeBadge.add(badgeRect, badgeText);
+
+      const h1 = new Konva.Circle({ x: p1.x, y: p1.y, radius: STYLE.HANDLE_RADIUS / curScale, fill: '#0066FF', stroke: '#fff', strokeWidth: 1.5 / curScale, draggable: true, name: 'adaptive-handle' });
+      const h2 = new Konva.Circle({ x: p2.x, y: p2.y, radius: STYLE.HANDLE_RADIUS / curScale, fill: '#0066FF', stroke: '#fff', strokeWidth: 1.5 / curScale, draggable: true, name: 'adaptive-handle' });
+
+      const serviceData = {
+        group,
+        badgeText,
+        h1, h2,
+        char: labelChar,
+        wireCount: wireCount,
+        meters: 0
+      };
+
+      function renderSlashes(baseX, baseY, angle, normalX, normalY, count) {
+        slashGroup.destroyChildren();
+        const slashLen = 11;
+        const spacing = 5;
+        const startOffset = -((count - 1) / 2) * spacing;
+
+        for (let i = 0; i < count; i++) {
+          const off = startOffset + i * spacing;
+          const cx = baseX + off * Math.cos(angle);
+          const cy = baseY + off * Math.sin(angle);
+          const s = new Konva.Line({
+            stroke: '#0066FF',
+            strokeWidth: STYLE.SERVICE_STROKE / curScale,
+            name: 'adaptive-service-line',
+            points: [
+              cx - (slashLen/2) * normalX, cy - (slashLen/2) * normalY,
+              cx + (slashLen/2) * normalX, cy + (slashLen/2) * normalY
+            ]
+          });
+          slashGroup.add(s);
+        }
+      }
+
+      function renderPts(x1, y1, x2, y2) {
+        const dx = x2 - x1, dy = y2 - y1;
+        const angle = Math.atan2(dy, dx);
+        const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+        const normalX = -Math.sin(angle), normalY = Math.cos(angle);
+
+        const zStep = 7;
+        mainLine.points([
+          x1, y1,
+          midX - zStep * Math.cos(angle), midY - zStep * Math.sin(angle),
+          midX - zStep * normalX, midY - zStep * normalY,
+          midX + zStep * normalX, midY + zStep * normalY,
+          midX + zStep * Math.cos(angle), midY + zStep * Math.sin(angle),
+          x2, y2
+        ]);
+
+        const slashBaseX = x1 + (x2 - x1) * 0.72;
+        const slashBaseY = y1 + (y2 - y1) * 0.72;
+        renderSlashes(slashBaseX, slashBaseY, angle, normalX, normalY, serviceData.wireCount);
+
+        nodeBadge.position({ x: x2, y: y2 });
+      }
+
+      group.updateEndpoints = function(pt1, pt2) {
+        h1.position(pt1);
+        h2.position(pt2);
+        renderPts(pt1.x, pt1.y, pt2.x, pt2.y);
+      };
+
+      group.setWireCount = function(cnt) {
+        serviceData.wireCount = cnt;
+        renderPts(h1.x(), h1.y(), h2.x(), h2.y());
+        refreshServiceLinesIndex();
+      };
+
+      h1.on('dragmove', (e) => { 
+        e.cancelBubble = true; 
+        renderPts(h1.x(), h1.y(), h2.x(), h2.y()); 
+        serviceData.meters = Math.round(Math.hypot(h2.x() - h1.x(), h2.y() - h1.y()) / PX_PER_METER);
+        refreshServiceLinesIndex();
+      });
+      h2.on('dragmove', (e) => { 
+        e.cancelBubble = true; 
+        renderPts(h1.x(), h1.y(), h2.x(), h2.y()); 
+        serviceData.meters = Math.round(Math.hypot(h2.x() - h1.x(), h2.y() - h1.y()) / PX_PER_METER);
+        refreshServiceLinesIndex();
+      });
+
+      h1.on('dragend', saveState);
+      h2.on('dragend', saveState);
+      group.on('dragend', saveState);
+
+      group.add(mainLine, slashGroup, nodeBadge, h1, h2);
+
+      group.on('click', (e) => {
+        if (currentMode === 'select') { 
+          e.cancelBubble = true; 
+          tr.nodes([group]); 
+          const wireInput = document.getElementById('prop-wire-count');
+          if (wireInput) wireInput.value = serviceData.wireCount;
+          drawLayer.draw(); 
+        }
+      });
+
+      group.serviceData = serviceData;
+      renderPts(p1.x, p1.y, p2.x, p2.y);
+      drawLayer.add(group);
+      drawLayer.draw();
+      return group;
+    }
+
+    function cycleSelectedWireCount() {
+      tr.nodes().forEach(node => {
+        if (node.setWireCount) {
+          const current = node.serviceData.wireCount;
+          const next = current >= 5 ? 1 : current + 1;
+          node.setWireCount(next);
+          const wireInput = document.getElementById('prop-wire-count');
+          if (wireInput) wireInput.value = next;
+        }
+      });
+      saveState();
+    }
+    document.getElementById('btn-cycle-wire')?.addEventListener('click', cycleSelectedWireCount);
+
+    document.getElementById('prop-wire-count')?.addEventListener('change', (e) => {
+      const cnt = parseInt(e.target.value);
+      tr.nodes().forEach(node => {
+        if (node.setWireCount) node.setWireCount(cnt);
+      });
+      saveState();
+    });
+
+    function getOrCreateSummaryBox() {
+      if (summaryGroup && summaryGroup.getStage()) return summaryGroup;
+
+      const transform = stage.getAbsoluteTransform().copy().invert();
+      const pos = transform.point({ x: 30, y: 30 });
+
+      summaryGroup = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
+      summaryRectNode = new Konva.Rect({ stroke: 'red', strokeWidth: 1.8, fill: 'rgba(255, 255, 255, 0.95)' });
+      summaryTextNode = new Konva.Text({
+        text: '【外線材料彙整規格】',
+        fontSize: 12,
+        fontStyle: 'bold',
+        fill: 'red',
+        padding: 8,
+        lineHeight: 1.45
+      });
+
+      function updateBox() {
+        summaryRectNode.width(summaryTextNode.width());
+        summaryRectNode.height(summaryTextNode.height());
+      }
+      updateBox();
+      makeEditable(summaryTextNode, updateBox);
+
+      summaryGroup.add(summaryRectNode, summaryTextNode);
+      summaryGroup.on('click', (e) => {
+        if (currentMode === 'select') { e.cancelBubble = true; tr.nodes([summaryGroup]); drawLayer.draw(); }
+      });
+      summaryGroup.on('dragend', saveState);
+
+      drawLayer.add(summaryGroup);
+      refreshServiceLinesIndex();
+      return summaryGroup;
+    }
+    document.getElementById('btn-add-summary')?.addEventListener('click', () => getOrCreateSummaryBox());
+
+    document.getElementById('prop-font-size')?.addEventListener('change', (e) => {
+      const size = parseInt(e.target.value);
+      tr.nodes().forEach(node => {
+        const textNodes = node.find('Text');
+        textNodes.forEach(t => t.fontSize(size));
+        const rectNodes = node.find('Rect');
+        if (rectNodes[0] && textNodes[0]) {
+          rectNodes[0].width(textNodes[0].width());
+          rectNodes[0].height(textNodes[0].height());
+        }
+      });
+      drawLayer.draw();
+      saveState();
+    });
+
+    function toggleSelectedBold() {
+      tr.nodes().forEach(node => {
+        const textNodes = node.find('Text');
+        textNodes.forEach(t => {
+          t.fontStyle(t.fontStyle() === 'bold' ? 'normal' : 'bold');
+        });
+      });
+      drawLayer.draw();
+      saveState();
+    }
+    document.getElementById('prop-bold-btn')?.addEventListener('click', toggleSelectedBold);
+    document.getElementById('btn-toggle-bold')?.addEventListener('click', toggleSelectedBold);
+
+    window.applyColor = function(color) {
+      tr.nodes().forEach(node => {
+        node.find('Text').forEach(t => t.fill(color));
+        node.find('Rect').forEach(r => r.stroke(color));
+        node.find('Line').forEach(l => l.stroke(color));
+      });
+      drawLayer.draw();
+      saveState();
     };
 
-    // 匯出高畫質 PNG
-    document.getElementById('export-btn').onclick = function() {
+    function makeEditable(konvaText, onDone) {
+      konvaText.on('dblclick', () => {
+        const textPosition = konvaText.getAbsolutePosition();
+        const stageBox = stage.container().getBoundingClientRect();
+
+        const area = document.createElement('textarea');
+        document.body.appendChild(area);
+
+        area.value = konvaText.text();
+        area.style.position = 'absolute';
+        area.style.top = `${stageBox.top + textPosition.y}px`;
+        area.style.left = `${stageBox.left + textPosition.x}px`;
+        area.style.width = `${Math.max(konvaText.width() * stage.scaleX() + 40, 200)}px`;
+        area.style.height = `${Math.max(konvaText.height() * stage.scaleY() + 30, 90)}px`;
+        area.style.fontSize = '12px';
+        area.style.fontWeight = 'bold';
+        area.style.lineHeight = '1.35';
+        area.style.border = '2px solid #0066FF';
+        area.style.padding = '4px';
+        area.style.zIndex = '1000';
+        area.style.background = '#fff';
+        area.style.color = '#000';
+        area.focus();
+
+        function finish() {
+          konvaText.text(area.value);
+          if (area.parentNode) area.parentNode.removeChild(area);
+          if (onDone) onDone();
+          drawLayer.draw();
+          saveState();
+        }
+
+        area.addEventListener('keydown', e => {
+          if (e.key === 'Escape') finish();
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) finish();
+        });
+        area.addEventListener('blur', finish);
+      });
+    }
+
+    // 經典原版百分百精準的裁切與置中核心
+    function findInnerGridBox(ctx, W, H) {
+      const imgData = ctx.getImageData(0, 0, W, H);
+      const data = imgData.data;
+
+      function isBlackPx(x, y) {
+        const i = (Math.floor(y) * W + Math.floor(x)) * 4;
+        return data[i] < 110 && data[i+1] < 110 && data[i+2] < 110 && data[i+3] > 100;
+      }
+
+      function countH(y, startX, endX) {
+        let cnt = 0;
+        const step = 4;
+        for (let x = startX; x <= endX; x += step) {
+          if (isBlackPx(x, y)) cnt++;
+        }
+        return cnt / ((endX - startX) / step);
+      }
+
+      function countV(x, startY, endY) {
+        let cnt = 0;
+        const step = 4;
+        for (let y = startY; y <= endY; y += step) {
+          if (isBlackPx(x, y)) cnt++;
+        }
+        return cnt / ((endY - startY) / step);
+      }
+
+      let topLines = [];
+      for (let y = Math.floor(H * 0.02); y < H * 0.20; y++) {
+        const ratio = countH(y, W * 0.25, W * 0.75);
+        if (ratio > 0.65) {
+          if (topLines.length === 0 || y - topLines[topLines.length - 1] > 6) topLines.push(y);
+        }
+      }
+      let top = topLines.length >= 2 ? topLines[1] : (topLines[0] ? topLines[0] + 15 : Math.floor(H * 0.046));
+
+      let leftLines = [];
+      for (let x = Math.floor(W * 0.015); x < W * 0.20; x++) {
+        const ratio = countV(x, H * 0.25, H * 0.65);
+        if (ratio > 0.65) {
+          if (leftLines.length === 0 || x - leftLines[leftLines.length - 1] > 6) leftLines.push(x);
+        }
+      }
+      let left = leftLines.length >= 2 ? leftLines[1] : (leftLines[0] ? leftLines[0] + 15 : Math.floor(W * 0.047));
+
+      let rightLines = [];
+      for (let x = Math.floor(W * 0.985); x > W * 0.80; x--) {
+        const ratio = countV(x, H * 0.25, H * 0.65);
+        if (ratio > 0.65) {
+          if (rightLines.length === 0 || rightLines[rightLines.length - 1] - x > 6) rightLines.push(x);
+        }
+      }
+      let right = rightLines.length >= 2 ? rightLines[1] : (rightLines[0] ? rightLines[0] - 15 : Math.floor(W * 0.953));
+
+      const measuredW = right - left;
+      const targetH = Math.round(measuredW * (500 / 800));
+      return { x: left, y: top, w: measuredW, h: targetH };
+    }
+
+    async function renderAndCropPdfTile(file) {
+      const typedarray = new Uint8Array(await file.arrayBuffer());
+      const pdf = await pdfjsLib.getDocument(typedarray).promise;
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
+
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = viewport.width;
+      offCanvas.height = viewport.height;
+      const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+      await page.render({ canvasContext: offCtx, viewport: viewport }).promise;
+
+      if (!cachedCrop) {
+        cachedCrop = findInnerGridBox(offCtx, viewport.width, viewport.height);
+        MAP_W = cachedCrop.w;
+        MAP_H = cachedCrop.h;
+        PX_PER_METER = MAP_W / 800;
+      }
+
+      const croppedCanvas = document.createElement('canvas');
+      croppedCanvas.width = MAP_W;
+      croppedCanvas.height = MAP_H;
+      const croppedCtx = croppedCanvas.getContext('2d');
+      croppedCtx.drawImage(offCanvas, cachedCrop.x, cachedCrop.y, MAP_W, MAP_H, 0, 0, MAP_W, MAP_H);
+      return croppedCanvas;
+    }
+
+    const pdfFileMap = new Map();
+    document.getElementById('folder-upload')?.addEventListener('change', function(e) {
+      const files = e.target.files;
+      if (!files.length) return;
+      pdfFileMap.clear();
+      let count = 0;
+      for (let file of files) {
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+          const baseName = file.name.substring(0, file.name.lastIndexOf('.')).toUpperCase();
+          pdfFileMap.set(baseName, file);
+          count++;
+        }
+      }
+      const statusEl = document.getElementById('index-status');
+      if (statusEl) statusEl.innerText = `✅ 已索引 ${count} 張圖資！`;
+    });
+
+    async function loadPdfFile(file, mapName) {
+      currentMapId = mapName;
+      cachedCrop = null;
+      const statusEl = document.getElementById('index-status');
+      if (statusEl) statusEl.innerText = `解析高解析主圖: ${file.name}...`;
+      try {
+        const croppedCanvas = await renderAndCropPdfTile(file);
+        bgLayer.destroyChildren();
+        stitchedMaps.clear();
+
+        const match = mapName.match(/G?(\d{2})(\d{2})/);
+        if (match) render9Grid(parseInt(match[1]), parseInt(match[2]));
+
+        // 單張主圖背景與固定當前圖號的 10×16 網格浮水印
+        const mainGroup = new Konva.Group();
+        const mainImage = new Konva.Image({ x: 0, y: 0, image: croppedCanvas, width: MAP_W, height: MAP_H });
+        const watermarks = createMapGridWatermarks(mapName, MAP_W, MAP_H, 0, 0);
+
+        mainGroup.add(mainImage, watermarks);
+        bgLayer.add(mainGroup);
+        bgLayer.draw();
+
+        const fitScale = Math.min((container.offsetWidth * 0.92) / MAP_W, (container.offsetHeight * 0.92) / MAP_H);
+        stage.scale({ x: fitScale, y: fitScale });
+        stage.position({
+          x: (container.offsetWidth - MAP_W * fitScale) / 2,
+          y: (container.offsetHeight - MAP_H * fitScale) / 2
+        });
+        stage.batchDraw();
+
+        if (statusEl) statusEl.innerText = `✅ 已載入: ${file.name} (無縫對齊)`;
+      } catch (err) { 
+        alert('PDF 解析失敗: ' + err.message); 
+        if (statusEl) statusEl.innerText = `❌ 解析失敗: ${err.message}`;
+      }
+    }
+
+    function render9Grid(centerX, centerY) {
+      const gridContainer = document.getElementById('grid-9-container');
+      if (!gridContainer) return;
+      gridContainer.innerHTML = '';
+      const rows = [
+        [{ dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 }],
+        [{ dx: -1, dy: 0 }, { dx: 0, dy: 0 }, { dx: 1, dy: 0 }],
+        [{ dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 }]
+      ];
+
+      rows.forEach(row => {
+        row.forEach(cell => {
+          const targetX = centerX + cell.dx;
+          const targetY = centerY + cell.dy;
+          const mapCode = `${targetX}${targetY}`;
+          const fullMapId = `G${mapCode}`;
+
+          const el = document.createElement('div');
+          el.className = 'grid-9-cell';
+          el.innerText = mapCode;
+
+          if (cell.dx === 0 && cell.dy === 0) {
+            el.classList.add('center');
+            el.title = '目前主圖';
+          } else {
+            el.title = `點擊咬合: ${fullMapId}`;
+            el.onclick = () => toggleStitchMap(fullMapId, cell.dx, cell.dy, el);
+          }
+          gridContainer.appendChild(el);
+        });
+      });
+    }
+
+    async function toggleStitchMap(mapId, relX, relY, element) {
+      if (stitchedMaps.has(mapId)) {
+        stitchedMaps.get(mapId).destroy();
+        stitchedMaps.delete(mapId);
+        element.classList.remove('stitched');
+        bgLayer.draw();
+        return;
+      }
+
+      let file = pdfFileMap.get(mapId) || pdfFileMap.get(mapId.replace('G', ''));
+      if (!file) {
+        alert(`資料夾內找不到相鄰圖資 [${mapId}.PDF]！`);
+        return;
+      }
+
+      const statusEl = document.getElementById('index-status');
+      if (statusEl) statusEl.innerText = `正在無縫拼接 ${mapId}...`;
+      try {
+        const croppedCanvas = await renderAndCropPdfTile(file);
+        const worldX = relX * MAP_W;
+        const worldY = -relY * MAP_H;
+
+        const stitchGroup = new Konva.Group();
+        const imgNode = new Konva.Image({ x: 0, y: 0, image: croppedCanvas, width: MAP_W, height: MAP_H });
+        const watermarks = createMapGridWatermarks(mapId, MAP_W, MAP_H, 0, 0);
+
+        stitchGroup.add(imgNode, watermarks);
+        stitchGroup.position({ x: worldX, y: worldY });
+
+        bgLayer.add(stitchGroup);
+        bgLayer.draw();
+
+        stitchedMaps.set(mapId, stitchGroup);
+        element.classList.add('stitched');
+        if (statusEl) statusEl.innerText = `✅ 已咬合: ${mapId}`;
+      } catch (e) { alert(`拼接失敗: ${e.message}`); }
+    }
+
+    function triggerSmartSearch() {
+      let raw = document.getElementById('map-search-input')?.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || '';
+      if (!raw) return alert('請輸入圖號！');
+
+      let match = raw.match(/(\d{4})/);
+      let num4 = match ? match[1] : raw.substring(0, 4);
+
+      let targetMapId = 'G' + num4;
+      let targetMapIdNoG = num4;
+
+      let file = pdfFileMap.get(targetMapId) || pdfFileMap.get(targetMapIdNoG);
+      if (!file) file = pdfFileMap.get(raw);
+
+      if (file) {
+        loadPdfFile(file, targetMapId);
+      } else {
+        alert(`找不到圖資 [${targetMapId}.PDF]！\n請確認已掛載包含此圖之資料夾。`);
+      }
+    }
+
+    document.getElementById('search-load-btn')?.addEventListener('click', triggerSmartSearch);
+    document.getElementById('map-search-input')?.addEventListener('keydown', e => { 
+      if (e.key === 'Enter') triggerSmartSearch(); 
+    });
+
+    document.getElementById('export-btn')?.addEventListener('click', function() {
+      tr.nodes([]);
+      stage.find('.adaptive-handle').forEach(h => h.visible(false));
+      stage.find('.pole-handle').forEach(h => h.visible(false));
+      stage.draw();
+
       const dataURL = stage.toDataURL({ pixelRatio: 2 });
       const link = document.createElement('a');
-      link.download = '台電設計圖面.png';
+      link.download = `台電外線設計竣工圖_${currentMapId || 'EXPORT'}.png`;
       link.href = dataURL;
       link.click();
-    };
+
+      stage.find('.adaptive-handle').forEach(h => h.visible(true));
+      stage.draw();
+    });
+
+    saveState();
   </script>
 </body>
 </html>
